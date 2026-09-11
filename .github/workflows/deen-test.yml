@@ -1,0 +1,29 @@
+name: Deen in Sec Test
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test cloud machine
+        run: |
+          echo "================================"
+          echo "DEEN IN SEC AUTOMATION"
+          echo "Cloud machine is working!"
+          echo "================================"
+
+      - name: Check FFmpeg
+        run: |
+          ffmpeg -version | head -n 1
+
+      - name: Check Python
+        run: |
+          python --version
+
+      - name: Finish
+        run: |
+          echo "Ready to build the Reel automation!"
