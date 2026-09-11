@@ -1,0 +1,509 @@
+name: Deen in Sec - Create Reel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-reel:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ==========================================
+      # 1. DOWNLOAD OUR PROJECT
+      # ==========================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ==========================================
+      # 2. INSTALL TOOLS
+      # ==========================================
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu
+
+      - name: Install Piper TTS
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install piper-tts
+
+
+      # ==========================================
+      # 3. CREATE FOLDERS
+      # ==========================================
+      - name: Create folders
+        run: |
+          mkdir -p output
+          mkdir -p work
+          mkdir -p visuals
+
+
+      # ==========================================
+      # 4. CREATE HADITH SCRIPT
+      # ==========================================
+      - name: Create script
+        run: |
+          cat > work/script.txt <<'EOF'
+          Your actions might look good, but what really matters is why you did them.
+
+          The Prophet Muhammad, peace and blessings be upon him, said:
+
+          The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.
+
+          So before you do something, ask yourself: Why am I doing this?
+
+          A small action with a sincere intention can have a huge reward.
+
+          What will you make your intention for today?
+          EOF
+
+
+      # ==========================================
+      # 5. GENERATE VOICE
+      # ==========================================
+      - name: Generate voice
+        run: |
+          cat work/script.txt | piper \
+            --model en_US-lessac-medium \
+            --output_file work/voice.wav
+
+          ls -lh work/voice.wav
+
+
+      # ==========================================
+      # 6. CREATE CINEMATIC VISUAL 1
+      # ==========================================
+      - name: Create visual 1 - Mosque
+        run: |
+          cat > visuals/scene1.svg <<'EOF'
+          <svg xmlns="http://www.w3.org/2000/svg"
+               width="1080" height="1920">
+            <defs>
+              <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#07111c"/>
+                <stop offset="55%" stop-color="#152b35"/>
+                <stop offset="100%" stop-color="#05080d"/>
+              </linearGradient>
+              <radialGradient id="light">
+                <stop offset="0%" stop-color="#e7c77b"
+                      stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#e7c77b"
+                      stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+
+            <rect width="1080" height="1920" fill="url(#bg)"/>
+
+            <ellipse cx="540" cy="760"
+                     rx="500" ry="500"
+                     fill="url(#light)"/>
+
+            <circle cx="540" cy="1050" r="230"
+                    fill="none"
+                    stroke="#c9aa63"
+                    stroke-width="5"
+                    opacity="0.55"/>
+
+            <circle cx="540" cy="1050" r="190"
+                    fill="none"
+                    stroke="#c9aa63"
+                    stroke-width="2"
+                    opacity="0.35"/>
+
+            <path d="M0 1550
+                     Q180 1420 360 1550
+                     Q540 1680 720 1550
+                     Q900 1420 1080 1550
+                     L1080 1920
+                     L0 1920Z"
+                  fill="#030507"/>
+
+            <path d="M380 1550
+                     L380 1320
+                     Q380 1110 540 1040
+                     Q700 1110 700 1320
+                     L700 1550Z"
+                  fill="#020305"/>
+
+            <path d="M470 1550
+                     L470 1330
+                     Q470 1240 540 1200
+                     Q610 1240 610 1330
+                     L610 1550Z"
+                  fill="#101b20"/>
+
+            <path d="M540 1200 L540 1050"
+                  stroke="#c9aa63"
+                  stroke-width="5"
+                  opacity="0.7"/>
+
+            <text x="540" y="350"
+                  text-anchor="middle"
+                  fill="#e7c77b"
+                  font-size="42"
+                  font-family="DejaVu Sans">
+              DEEN IN SEC
+            </text>
+          </svg>
+          EOF
+
+          ffmpeg -y \
+            -f lavfi \
+            -i color=c=black:s=1080x1920:d=8 \
+            -vf "format=rgb24" \
+            visuals/scene1.png
+
+
+      # ==========================================
+      # 7. CREATE CINEMATIC VISUAL 2
+      # ==========================================
+      - name: Create visual 2 - Light
+        run: |
+          cat > visuals/scene2.svg <<'EOF'
+          <svg xmlns="http://www.w3.org/2000/svg"
+               width="1080" height="1920">
+
+            <defs>
+              <linearGradient id="bg"
+                      x1="0" y1="0"
+                      x2="1" y2="1">
+                <stop offset="0%" stop-color="#08141b"/>
+                <stop offset="50%" stop-color="#29434a"/>
+                <stop offset="100%" stop-color="#070b10"/>
+              </linearGradient>
+
+              <radialGradient id="sun">
+                <stop offset="0%" stop-color="#f4d78a"
+                      stop-opacity="0.7"/>
+                <stop offset="100%" stop-color="#f4d78a"
+                      stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+
+            <rect width="1080" height="1920"
+                  fill="url(#bg)"/>
+
+            <ellipse cx="540" cy="700"
+                     rx="420" ry="420"
+                     fill="url(#sun)"/>
+
+            <circle cx="540" cy="700"
+                    r="160"
+                    fill="#f4d78a"
+                    opacity="0.08"/>
+
+            <path d="M0 1450
+                     Q220 1350 430 1460
+                     Q650 1580 1080 1390
+                     L1080 1920
+                     L0 1920Z"
+                  fill="#05080b"/>
+
+            <path d="M0 1540
+                     Q300 1460 540 1550
+                     Q800 1640 1080 1510"
+                  fill="none"
+                  stroke="#c9aa63"
+                  stroke-width="4"
+                  opacity="0.45"/>
+
+            <text x="540" y="350"
+                  text-anchor="middle"
+                  fill="#ffffff"
+                  font-size="52"
+                  font-family="DejaVu Sans">
+              REFLECT
+            </text>
+
+            <text x="540" y="420"
+                  text-anchor="middle"
+                  fill="#c9aa63"
+                  font-size="30"
+                  font-family="DejaVu Sans">
+              BEFORE YOU ACT
+            </text>
+
+          </svg>
+          EOF
+
+          # Convert SVG to PNG
+          ffmpeg -y \
+            -i visuals/scene2.svg \
+            -frames:v 1 \
+            visuals/scene2.png
+
+
+      # ==========================================
+      # 8. CREATE CINEMATIC VISUAL 3
+      # ==========================================
+      - name: Create visual 3 - Islamic Geometry
+        run: |
+          cat > visuals/scene3.svg <<'EOF'
+          <svg xmlns="http://www.w3.org/2000/svg"
+               width="1080" height="1920">
+
+            <defs>
+              <linearGradient id="bg"
+                      x1="0" y1="0"
+                      x2="0" y2="1">
+                <stop offset="0%" stop-color="#04080c"/>
+                <stop offset="50%" stop-color="#172c32"/>
+                <stop offset="100%" stop-color="#030507"/>
+              </linearGradient>
+            </defs>
+
+            <rect width="1080" height="1920"
+                  fill="url(#bg)"/>
+
+            <g fill="none"
+               stroke="#c9aa63"
+               stroke-width="3"
+               opacity="0.32">
+
+              <circle cx="540" cy="960" r="420"/>
+              <circle cx="540" cy="960" r="300"/>
+              <circle cx="540" cy="960" r="180"/>
+
+              <path d="M540 540
+                       L960 960
+                       L540 1380
+                       L120 960 Z"/>
+
+              <path d="M540 660
+                       L840 960
+                       L540 1260
+                       L240 960 Z"/>
+
+              <path d="M540 540
+                       L540 1380"/>
+
+              <path d="M120 960
+                       L960 960"/>
+            </g>
+
+            <text x="540" y="350"
+                  text-anchor="middle"
+                  fill="#e7c77b"
+                  font-size="46"
+                  font-family="DejaVu Sans">
+              SINCERE INTENTION
+            </text>
+
+          </svg>
+          EOF
+
+          ffmpeg -y \
+            -i visuals/scene3.svg \
+            -frames:v 1 \
+            visuals/scene3.png
+
+
+      # ==========================================
+      # 9. CREATE VISUAL 4
+      # ==========================================
+      - name: Create visual 4 - Peaceful ending
+        run: |
+          cat > visuals/scene4.svg <<'EOF'
+          <svg xmlns="http://www.w3.org/2000/svg"
+               width="1080" height="1920">
+
+            <defs>
+              <linearGradient id="bg"
+                      x1="0" y1="0"
+                      x2="0" y2="1">
+                <stop offset="0%" stop-color="#1b2633"/>
+                <stop offset="45%" stop-color="#8b7652"/>
+                <stop offset="70%" stop-color="#243b3d"/>
+                <stop offset="100%" stop-color="#050709"/>
+              </linearGradient>
+            </defs>
+
+            <rect width="1080"
+                  height="1920"
+                  fill="url(#bg)"/>
+
+            <circle cx="540"
+                    cy="700"
+                    r="190"
+                    fill="#f3d890"
+                    opacity="0.28"/>
+
+            <circle cx="540"
+                    cy="700"
+                    r="125"
+                    fill="#f3d890"
+                    opacity="0.15"/>
+
+            <path d="M0 1450
+                     Q260 1320 520 1470
+                     Q780 1610 1080 1400
+                     L1080 1920
+                     L0 1920Z"
+                  fill="#050709"/>
+
+            <text x="540"
+                  y="400"
+                  text-anchor="middle"
+                  fill="#ffffff"
+                  font-size="48"
+                  font-family="DejaVu Sans">
+              MAKE YOUR
+            </text>
+
+            <text x="540"
+                  y="470"
+                  text-anchor="middle"
+                  fill="#e7c77b"
+                  font-size="62"
+                  font-family="DejaVu Sans">
+              INTENTION
+            </text>
+
+            <text x="540"
+                  y="540"
+                  text-anchor="middle"
+                  fill="#ffffff"
+                  font-size="42"
+                  font-family="DejaVu Sans">
+              COUNT TODAY
+            </text>
+
+          </svg>
+          EOF
+
+          ffmpeg -y \
+            -i visuals/scene4.svg \
+            -frames:v 1 \
+            visuals/scene4.png
+
+
+      # ==========================================
+      # 10. BUILD BACKGROUND VIDEO
+      # ==========================================
+      - name: Build visual sequence
+        run: |
+          ffmpeg -y \
+            -loop 1 -i visuals/scene1.png \
+            -loop 1 -i visuals/scene2.png \
+            -loop 1 -i visuals/scene3.png \
+            -loop 1 -i visuals/scene4.png \
+            -filter_complex "
+              [0:v]scale=1080:1920,setsar=1,fps=30,trim=duration=8[v0];
+              [1:v]scale=1080:1920,setsar=1,fps=30,trim=duration=8[v1];
+              [2:v]scale=1080:1920,setsar=1,fps=30,trim=duration=8[v2];
+              [3:v]scale=1080:1920,setsar=1,fps=30,trim=duration=8[v3];
+              [v0][v1][v2][v3]concat=n=4:v=1:a=0[outv]
+            " \
+            -map "[outv]" \
+            -t 32 \
+            -c:v libx264 \
+            -pix_fmt yuv420p \
+            work/background.mp4
+
+
+      # ==========================================
+      # 11. GET VOICE LENGTH
+      # ==========================================
+      - name: Get voice duration
+        run: |
+          ffprobe \
+            -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            work/voice.wav
+
+
+      # ==========================================
+      # 12. CREATE SUBTITLES
+      # ==========================================
+      - name: Create subtitles
+        run: |
+          cat > work/subtitles.ass <<'EOF'
+          [Script Info]
+          ScriptType: v4.00+
+          PlayResX: 1080
+          PlayResY: 1920
+
+          [V4+ Styles]
+          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Alignment, MarginL, MarginR, MarginV, Encoding
+          Style: Default,DejaVu Sans,54,&H00FFFFFF,&H00FFFFFF,&H00101010,&H99000000,1,0,5,70,70,250,1
+
+          [Events]
+          Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+
+          Dialogue: 0,0:00:00.00,0:00:04.50,Default,,0,0,0,,Your actions might look good...
+          Dialogue: 0,0:00:04.50,0:00:08.00,Default,,0,0,0,,but what really matters is WHY you did them.
+
+          Dialogue: 0,0:00:08.00,0:00:12.00,Default,,0,0,0,,The Prophet Muhammad ﷺ said:
+
+          Dialogue: 0,0:00:12.00,0:00:19.50,Default,,0,0,0,,The reward of deeds depends upon the intentions,
+
+          Dialogue: 0,0:00:19.50,0:00:24.00,Default,,0,0,0,,and every person will get the reward according to what they have intended.
+
+          Dialogue: 0,0:00:24.00,0:00:28.00,Default,,0,0,0,,So before you do something, ask yourself:
+
+          Dialogue: 0,0:00:28.00,0:00:31.50,Default,,0,0,0,,Why am I doing this?
+
+          Dialogue: 0,0:00:31.50,0:00:35.50,Default,,0,0,0,,A small action with a sincere intention can have a huge reward.
+
+          Dialogue: 0,0:00:35.50,0:00:40.00,Default,,0,0,0,,What will you make your intention for today? 💚
+
+          EOF
+
+
+      # ==========================================
+      # 13. CREATE FINAL REEL
+      # ==========================================
+      - name: Render final Reel
+        run: |
+          ffmpeg -y \
+            -i work/background.mp4 \
+            -i work/voice.wav \
+            -filter_complex "
+              [0:v]subtitles=work/subtitles.ass:
+              force_style='FontName=DejaVu Sans,FontSize=54,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,BorderStyle=1,Outline=3,Shadow=1,Alignment=5'[v]
+            " \
+            -map "[v]" \
+            -map 1:a \
+            -shortest \
+            -c:v libx264 \
+            -preset medium \
+            -crf 20 \
+            -pix_fmt yuv420p \
+            -c:a aac \
+            -b:a 192k \
+            -movflags +faststart \
+            -vf "scale=1080:1920" \
+            output/deen-in-sec-hadith-001.mp4
+
+
+      # ==========================================
+      # 14. CHECK FINAL VIDEO
+      # ==========================================
+      - name: Check final Reel
+        run: |
+          echo "=============================="
+          echo "DEEN IN SEC REEL CREATED"
+          echo "=============================="
+
+          ls -lh output/
+
+          ffprobe \
+            -v error \
+            -show_entries format=duration,size \
+            -show_entries stream=width,height,codec_name \
+            -of default=noprint_wrappers=1 \
+            output/deen-in-sec-hadith-001.mp4
+
+
+      # ==========================================
+      # 15. UPLOAD FINAL REEL
+      # ==========================================
+      - name: Upload finished Reel
+        uses: actions/upload-artifact@v4
+        with:
+          name: deen-in-sec-hadith-001
+          path: output/deen-in-sec-hadith-001.mp4
+          retention-days: 7
