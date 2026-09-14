@@ -32,32 +32,16 @@ jobs:
       # ==========================================
       - name: Create voice script
         run: |
-          cat > work/script.txt <<'EOF'
-          Your actions might look good, but what really matters is why you did them.
-
-          The Prophet Muhammad, peace and blessings be upon him, said:
-
-          The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.
-
-          So before you do something, ask yourself: Why am I doing this?
-
-          A small action with a sincere intention can have a huge reward.
-
-          What will you make your intention for today?
-          EOF
+           
 
       # ==========================================
       # GENERATE AI VOICE
       # ==========================================
       - name: Generate voice
         run: |
-          piper \
-            --model en_US-lessac-medium \
-            --input_file work/script.txt \
-            --output_file work/voice.wav
-
-          echo "Voice created:"
-          ls -lh work/voice.wav
+          mkdir -p output
+          python -m piper.download_voices en_US-lessac-medium
+               echo "Your actions might look good, but what really matters is why you did them. The reward of deeds depends upon the intentions, and every person will get the reward according to what he has intended." | piper --model en_US-lessac-medium --output_file output/deen-in-sec-hadith-001.wav
 
       # ==========================================
       # CREATE CINEMATIC ISLAMIC BACKGROUND
