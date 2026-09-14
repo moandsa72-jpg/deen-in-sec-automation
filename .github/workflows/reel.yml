@@ -9,22 +9,28 @@ jobs:
 
     steps:
 
+      # ==========================================
+      # CHECKOUT
+      # ==========================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
+      # ==========================================
+      # INSTALL TOOLS
+      # ==========================================
+      - name: Install tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu
-
-      - name: Install Piper TTS
-        run: |
           python -m pip install --upgrade pip
-          python -m pip install piper-tts
+          python -m pip install piper-tts pillow
 
+      # ==========================================
+      # CREATE FOLDERS
+      # ==========================================
       - name: Create folders
         run: |
-          mkdir -p work
+          mkdir -p work/scenes
           mkdir -p output
 
       # ==========================================
@@ -32,137 +38,500 @@ jobs:
       # ==========================================
       - name: Create voice script
         run: |
-           
+          cat > work/script.txt <<'EOF'
+          Your actions might look good... but what really matters is why you did them.
+
+          The Prophet Muhammad, peace and blessings be upon him, said:
+
+          The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.
+
+          So before you do something, ask yourself: Why am I doing this?
+
+          A small action with a sincere intention can have a huge reward.
+
+          What will you make your intention for today?
+
+          Sahih al-Bukhari 1. Narrated by Umar ibn al-Khattab, may Allah be pleased with him.
+          EOF
 
       # ==========================================
-      # GENERATE AI VOICE
-      # =========================================
+      # DOWNLOAD MALE PIPER VOICE
+      # ==========================================
+      - name: Download male voice
+        run: |
+          python -m piper.download_voices en_US-hfc_male-medium
+
+      # ==========================================
+      # GENERATE MALE VOICE
+      # ==========================================
       - name: Generate voice
         run: |
-          mkdir -p work
-          python -m piper.download_voices en_US-lessac-medium
+          piper \
+            --model en_US-hfc_male-medium \
+            --output_file work/voice.wav \
+            --length_scale 1.15 \
+            --noise_scale 0.55 \
+            --noise_w 0.75 \
+            --sentence_silence 0.35 \
+            < work/script.txt
 
-                                             echo "Your actions might look good, but what really matters is why you did them. The reward of deeds depends upon the intentions, and every person will get the reward according to what he has intended." | \
-                              piper \
-                                 --model en_US-lessac-medium \
-                                   --output_file work/voice.wav
-        
+          echo "Voice generated:"
+          ls -lh work/voice.wav
+
       # ==========================================
-      # CREATE CINEMATIC ISLAMIC BACKGROUND
+      # CREATE CINEMATIC ISLAMIC SCENES
       # ==========================================
-      - name: Create cinematic background
+      - name: Create cinematic scenes
         run: |
-          ffmpeg -y \
-            -f lavfi \
-            -i "color=c=#07151b:s=1080x1920:r=30" \
-            -t 45 \
-            -vf "
-              drawbox=x=0:y=0:w=1080:h=1920:color=#07151b@1:t=fill,
-              drawbox=x=60:y=60:w=960:h=1800:color=#c9aa63@0.10:t=5,
-              drawbox=x=110:y=110:w=860:h=1700:color=#c9aa63@0.06:t=3,
+          cat > work/create_scenes.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          import math
+          import random
+          import os
 
-              drawbox=x=490:y=600:w=100:h=700:color=#020507@1:t=fill,
-              drawbox=x=390:y=850:w=300:h=450:color=#020507@1:t=fill,
+          W, H = 1080, 1920
+          OUT = "work/scenes"
+          os.makedirs(OUT, exist_ok=True)
 
-              drawbox=x=445:y=900:w=190:h=400:color=#07151b@1:t=fill,
+          random.seed(7)
 
-              drawbox=x=190:y=500:w=5:h=800:color=#c9aa63@0.30:t=fill,
-              drawbox=x=885:y=500:w=5:h=800:color=#c9aa63@0.30:t=fill,
+          font_big = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          font_regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
-              drawbox=x=270:y=700:w=540:h=5:color=#c9aa63@0.22:t=fill,
+          def font(path, size):
+              return ImageFont.truetype(path, size)
 
-              drawtext=text='DEEN IN SEC':
-                x=(w-text_w)/2:
-                y=250:
-                fontsize=48:
-                fontcolor=#e7c77b:
-                font=DejaVu Sans,
+          def gradient(top, bottom):
+              img = Image.new("RGB", (W, H))
+              p = img.load()
 
-              drawtext=text='SINCERE INTENTION':
-                x=(w-text_w)/2:
-                y=1500:
-                fontsize=42:
-                fontcolor=white@0.65:
-                font=DejaVu Sans
-            " \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 22 \
-            -pix_fmt yuv420p \
-            work/background.mp4
+              for y in range(H):
+                  t = y / (H - 1)
+
+                  r = int(top[0] * (1-t) + bottom[0] * t)
+                  g = int(top[1] * (1-t) + bottom[1] * t)
+                  b = int(top[2] * (1-t) + bottom[2] * t)
+
+                  for x in range(W):
+                      p[x,y] = (r,g,b)
+
+              return img
+
+          def stars(draw, count=80):
+              for _ in range(count):
+                  x = random.randint(30, W-30)
+                  y = random.randint(30, H-400)
+                  r = random.choice([1,1,1,2])
+                  draw.ellipse((x-r,y-r,x+r,y+r), fill=(220,210,175))
+
+          def vignette(img):
+              overlay = Image.new("RGBA", (W,H), (0,0,0,0))
+              d = ImageDraw.Draw(overlay)
+
+              for i in range(35):
+                  alpha = int(2 + i*2.0)
+
+                  d.rectangle(
+                      (i*8, i*8, W-i*8, H-i*8),
+                      outline=(0,0,0,min(alpha,90)),
+                      width=10
+                  )
+
+              return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+          def add_gold_lines(draw):
+              for offset in [90, 125]:
+                  draw.rounded_rectangle(
+                      (offset, offset, W-offset, H-offset),
+                      radius=25,
+                      outline=(199,170,99),
+                      width=2
+                  )
+
+          # ------------------------------------------
+          # SCENE 1 - CINEMATIC MOSQUE SUNSET
+          # ------------------------------------------
+          img = gradient((8,17,25), (86,57,30))
+          d = ImageDraw.Draw(img)
+
+          # sunset glow
+          for r in range(420, 20, -10):
+              alpha = max(0, int(3 + (420-r)/2))
+              d.ellipse(
+                  (W//2-r, 500-r, W//2+r, 500+r),
+                  fill=(150+min(40,alpha),105+min(35,alpha),55)
+              )
+
+          # stars
+          stars(d, 65)
+
+          # mosque silhouette
+          base_y = 1420
+
+          d.rectangle((170, base_y, 910, 1920), fill=(3,7,9))
+
+          # central dome
+          d.ellipse((350, 900, 730, 1420), fill=(3,7,9))
+
+          # dome tip
+          d.polygon(
+              [(540,820),(500,930),(580,930)],
+              fill=(3,7,9)
+          )
+
+          # minarets
+          for x in [210, 820]:
+              d.rectangle((x, 720, x+55, base_y), fill=(3,7,9))
+              d.ellipse((x-15, 670, x+70, 750), fill=(3,7,9))
+              d.polygon(
+                  [(x-5,670),(x+27,600),(x+60,670)],
+                  fill=(3,7,9)
+              )
+
+          # arches
+          for x in [270, 410, 550, 690]:
+              d.rectangle((x, 1220, x+100, 1420), fill=(12,17,18))
+              d.ellipse((x, 1140, x+100, 1300), fill=(12,17,18))
+
+          add_gold_lines(d)
+
+          img = vignette(img)
+          img.save(f"{OUT}/scene1.png", quality=95)
+
+          # ------------------------------------------
+          # SCENE 2 - OPEN HADITH BOOK
+          # ------------------------------------------
+          img = gradient((7,14,19), (39,29,19))
+          d = ImageDraw.Draw(img)
+
+          stars(d, 25)
+
+          # warm light
+          for r in range(500, 50, -20):
+              shade = max(20, int(105 - r/8))
+              d.ellipse(
+                  (W//2-r, 850-r, W//2+r, 850+r),
+                  fill=(shade+35, shade+25, shade)
+              )
+
+          # book shadow
+          d.ellipse((120,1320,960,1700), fill=(2,5,6))
+
+          # left page
+          d.polygon(
+              [(130,1120),(535,1030),(535,1510),(170,1580)],
+              fill=(224,207,161)
+          )
+
+          # right page
+          d.polygon(
+              [(545,1030),(950,1120),(910,1580),(545,1510)],
+              fill=(238,220,171)
+          )
+
+          # spine
+          d.line((540,1040,540,1510), fill=(110,85,48), width=8)
+
+          # page lines
+          for y in range(1140,1480,55):
+              d.line((200,y,500,y-45), fill=(140,117,80), width=3)
+              d.line((580,y-45,875,y), fill=(140,117,80), width=3)
+
+          # gold ornament
+          d.ellipse((495,900,585,990), outline=(220,185,100), width=5)
+
+          add_gold_lines(d)
+
+          img = vignette(img)
+          img.save(f"{OUT}/scene2.png", quality=95)
+
+          # ------------------------------------------
+          # SCENE 3 - MOSQUE INTERIOR / REFLECTION
+          # ------------------------------------------
+          img = gradient((5,10,14), (49,38,25))
+          d = ImageDraw.Draw(img)
+
+          # large arch
+          d.ellipse((120,300,960,1450), outline=(190,155,90), width=8)
+          d.ellipse((190,380,890,1370), outline=(105,85,52), width=4)
+
+          # inner arch
+          d.arc((300,570,780,1250), 180, 360, fill=(205,175,105), width=5)
+
+          # floor
+          for y in range(1450,1920,90):
+              d.line((0,y,W,y), fill=(77,61,39), width=3)
+
+          # prayer rug
+          d.polygon(
+              [(360,1920),(720,1920),(650,1470),(430,1470)],
+              fill=(26,42,39)
+          )
+
+          d.line((430,1470,650,1470), fill=(205,170,90), width=5)
+
+          # lantern
+          d.ellipse((490,500,590,650), fill=(188,145,65))
+          d.rectangle((505,570,575,720), fill=(130,92,38))
+          d.polygon(
+              [(490,720),(590,720),(620,780),(460,780)],
+              fill=(90,61,27)
+          )
+
+          # light beam
+          for i in range(12):
+              alpha = max(10, 60-i*4)
+              d.polygon(
+                  [(540-i*10,720),(540+i*10,720),
+                   (800+i*35,1450),(280-i*35,1450)],
+                  fill=(150,120,60)
+              )
+
+          add_gold_lines(d)
+
+          img = vignette(img)
+          img.save(f"{OUT}/scene3.png", quality=95)
+
+          # ------------------------------------------
+          # SCENE 4 - PEACEFUL LANDSCAPE
+          # ------------------------------------------
+          img = gradient((11,23,34), (170,101,48))
+          d = ImageDraw.Draw(img)
+
+          # sun
+          d.ellipse((390,480,690,780), fill=(238,190,105))
+
+          # mountains
+          d.polygon(
+              [(0,1350),(260,1030),(450,1350),(700,930),(1080,1380),(1080,1920),(0,1920)],
+              fill=(17,25,27)
+          )
+
+          d.polygon(
+              [(0,1500),(300,1200),(520,1500),(800,1100),(1080,1500),(1080,1920),(0,1920)],
+              fill=(8,15,18)
+          )
+
+          # water
+          for y in range(1450,1920,35):
+              d.line((0,y,W,y), fill=(28,48,51), width=3)
+
+          # stars
+          stars(d, 45)
+
+          # crescent
+          d.ellipse((790,260,930,400), fill=(230,205,145))
+          d.ellipse((825,235,965,375), fill=(20,34,45))
+
+          add_gold_lines(d)
+
+          img = vignette(img)
+          img.save(f"{OUT}/scene4.png", quality=95)
+
+          # ------------------------------------------
+          # SCENE 5 - DEEN IN SEC BRAND END CARD
+          # ------------------------------------------
+          img = gradient((5,10,14), (16,23,25))
+          d = ImageDraw.Draw(img)
+
+          stars(d, 90)
+
+          # geometric center
+          cx, cy = W//2, 850
+
+          for r in [260,210,160]:
+              d.ellipse(
+                  (cx-r,cy-r,cx+r,cy+r),
+                  outline=(199,170,99),
+                  width=3
+              )
+
+          for angle in range(0,360,45):
+              rad = math.radians(angle)
+              x1 = cx + math.cos(rad)*260
+              y1 = cy + math.sin(rad)*260
+              x2 = cx - math.cos(rad)*260
+              y2 = cy - math.sin(rad)*260
+
+              d.line((x1,y1,x2,y2), fill=(199,170,99), width=2)
+
+          title = "DEEN IN SEC"
+          subtitle = "SMALL STEPS • BIG REWARDS"
+
+          f1 = font(font_big, 72)
+          f2 = font(font_regular, 34)
+
+          box1 = d.textbbox((0,0),title,font=f1)
+          box2 = d.textbbox((0,0),subtitle,font=f2)
+
+          d.text(
+              ((W-(box1[2]-box1[0]))/2,1230),
+              title,
+              font=f1,
+              fill=(231,199,123)
+          )
+
+          d.text(
+              ((W-(box2[2]-box2[0]))/2,1340),
+              subtitle,
+              font=f2,
+              fill=(220,220,210)
+          )
+
+          add_gold_lines(d)
+
+          img = vignette(img)
+          img.save(f"{OUT}/scene5.png", quality=95)
+
+          print("Cinematic scenes created successfully.")
+
+          PYTHON
+
+          python work/create_scenes.py
+
+          ls -lh work/scenes/
 
       # ==========================================
-      # CREATE SUBTITLE FILE
+      # TURN SCENES INTO MOVING VIDEO
+      # ==========================================
+      - name: Animate cinematic scenes
+        run: |
+
+          for i in 1 2 3 4 5
+          do
+
+            ffmpeg -y \
+              -loop 1 \
+              -i "work/scenes/scene${i}.png" \
+              -t 8 \
+              -vf "zoompan=z='min(zoom+0.0008,1.07)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=240:s=1080x1920:fps=30,fade=t=in:st=0:d=0.5,fade=t=out:st=7.5:d=0.5" \
+              -c:v libx264 \
+              -preset veryfast \
+              -crf 22 \
+              -pix_fmt yuv420p \
+              "work/scene${i}.mp4"
+
+          done
+
+          cat > work/concat.txt <<EOF
+          file 'scene1.mp4'
+          file 'scene2.mp4'
+          file 'scene3.mp4'
+          file 'scene4.mp4'
+          file 'scene5.mp4'
+          EOF
+
+          cd work
+
+          ffmpeg -y \
+            -f concat \
+            -safe 0 \
+            -i concat.txt \
+            -c copy \
+            background.mp4
+
+          cd ..
+
+          echo "Cinematic background created."
+
+      # ==========================================
+      # CREATE PROFESSIONAL SUBTITLES
       # ==========================================
       - name: Create subtitles
         run: |
+
           cat > work/subtitles.ass <<'EOF'
+
           [Script Info]
           ScriptType: v4.00+
           PlayResX: 1080
           PlayResY: 1920
+          WrapStyle: 2
+          ScaledBorderAndShadow: yes
 
           [V4+ Styles]
+
           Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Alignment, MarginL, MarginR, MarginV, Encoding
-          Style: Default,DejaVu Sans,58,&H00FFFFFF,&H00FFFFFF,&H00101010,&H99000000,1,0,5,80,80,300,1
+
+          Style: Hook,DejaVu Sans,65,&H007BC7E7,&H007BC7E7,&H00050505,&H88000000,1,0,5,90,90,380,1
+
+          Style: Main,DejaVu Sans,53,&H00FFFFFF,&H00FFFFFF,&H00050505,&H99000000,1,0,5,95,95,300,1
+
+          Style: Lesson,DejaVu Sans,51,&H00F3E5C0,&H00F3E5C0,&H00050505,&H99000000,1,0,5,95,95,300,1
+
+          Style: CTA,DejaVu Sans,58,&H007BC7E7,&H007BC7E7,&H00050505,&H99000000,1,0,5,90,90,380,1
+
+          Style: Source,DejaVu Sans,38,&H00D8D8D8,&H00D8D8D8,&H00050505,&H99000000,0,0,5,90,90,210,1
 
           [Events]
+
           Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
-          Dialogue: 0,0:00:00.00,0:00:04.50,Default,,0,0,0,,Your actions might look good...
-          Dialogue: 0,0:00:04.50,0:00:08.50,Default,,0,0,0,,But what really matters is WHY you did them.
+          Dialogue: 0,0:00:00.00,0:00:04.50,Hook,,0,0,0,,YOUR ACTIONS MIGHT LOOK GOOD...
 
-          Dialogue: 0,0:00:08.50,0:00:12.00,Default,,0,0,0,,The Prophet Muhammad ﷺ said:
+          Dialogue: 0,0:00:04.50,0:00:08.50,Hook,,0,0,0,,BUT WHY DID YOU DO THEM?
 
-          Dialogue: 0,0:00:12.00,0:00:18.50,Default,,0,0,0,,The reward of deeds depends upon the intentions,
+          Dialogue: 0,0:00:08.50,0:00:12.00,Main,,0,0,0,,The Prophet Muhammad, peace and blessings be upon him, said:
 
-          Dialogue: 0,0:00:18.50,0:00:24.00,Default,,0,0,0,,and every person will get the reward according to what they have intended.
+          Dialogue: 0,0:00:12.00,0:00:18.00,Main,,0,0,0,,The reward of deeds depends upon the intentions,
 
-          Dialogue: 0,0:00:24.00,0:00:28.50,Default,,0,0,0,,So before you do something, ask yourself:
+          Dialogue: 0,0:00:18.00,0:00:24.00,Main,,0,0,0,,and every person will get the reward according to what they have intended.
 
-          Dialogue: 0,0:00:28.50,0:00:31.50,Default,,0,0,0,,Why am I doing this?
+          Dialogue: 0,0:00:24.00,0:00:28.50,Lesson,,0,0,0,,So before you do something, ask yourself:
 
-          Dialogue: 0,0:00:31.50,0:00:36.00,Default,,0,0,0,,A small action with a sincere intention can have a huge reward.
+          Dialogue: 0,0:00:28.50,0:00:31.50,Lesson,,0,0,0,,WHY AM I DOING THIS?
 
-          Dialogue: 0,0:00:36.00,0:00:41.00,Default,,0,0,0,,What will you make your intention for today? 💚
+          Dialogue: 0,0:00:31.50,0:00:36.00,Lesson,,0,0,0,,A small action with a sincere intention can have a huge reward.
+
+          Dialogue: 0,0:00:36.00,0:00:40.00,CTA,,0,0,0,,What will you make your intention for today?
+
+          Dialogue: 0,0:00:40.00,0:00:40.80,Source,,0,0,0,,Sahih al-Bukhari 1 • Umar ibn al-Khattab
 
           EOF
 
       # ==========================================
-      # ADD FADE + SUBTITLES + VOICE
+      # RENDER FINAL REEL
       # ==========================================
       - name: Render final Reel
         run: |
+
           ffmpeg -y \
             -i work/background.mp4 \
             -i work/voice.wav \
             -filter_complex "
               [0:v]
-              fade=t=in:st=0:d=1,
-              fade=t=out:st=40:d=2,
-              subtitles=work/subtitles.ass
-              [video]
+              subtitles=work/subtitles.ass,
+              fade=t=in:st=0:d=0.8,
+              fade=t=out:st=39.2:d=0.8
+              [video];
+
+              [1:a]
+              apad=pad_dur=2,
+              volume=1.05
+              [audio]
             " \
             -map "[video]" \
-            -map 1:a \
-            -shortest \
+            -map "[audio]" \
+            -t 40 \
             -c:v libx264 \
             -preset medium \
             -crf 20 \
             -pix_fmt yuv420p \
             -c:a aac \
             -b:a 192k \
+            -ar 44100 \
             -movflags +faststart \
             output/deen-in-sec-hadith-001.mp4
 
       # ==========================================
-      # CHECK VIDEO
+      # CHECK FINAL VIDEO
       # ==========================================
       - name: Check final Reel
         run: |
-          echo "======================================"
-          echo "DEEN IN SEC REEL CREATED SUCCESSFULLY"
-          echo "======================================"
+
+          echo "=========================================="
+          echo "       DEEN IN SEC — VERSION 2"
+          echo "=========================================="
 
           ls -lh output/deen-in-sec-hadith-001.mp4
 
@@ -173,12 +542,16 @@ jobs:
             -of default=noprint_wrappers=1 \
             output/deen-in-sec-hadith-001.mp4
 
+          echo "=========================================="
+          echo "        REEL CREATION COMPLETE"
+          echo "=========================================="
+
       # ==========================================
-      # UPLOAD VIDEO AS ARTIFACT
+      # UPLOAD FINAL REEL
       # ==========================================
       - name: Upload Reel
         uses: actions/upload-artifact@v4
         with:
-          name: deen-in-sec-hadith-001
+          name: deen-in-sec-hadith-001-v2
           path: output/deen-in-sec-hadith-001.mp4
           retention-days: 7
