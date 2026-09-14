@@ -395,23 +395,76 @@ jobs:
       # TURN SCENES INTO MOVING VIDEO
       # ==========================================
       - name: Animate cinematic scenes
+        shell: bash
         run: |
+          set -e
+
+          echo "=========================================="
+          echo "CHECKING CINEMATIC SCENES"
+          echo "=========================================="
+
+          mkdir -p work/scenes
+
+          echo "Files currently in scenes:"
+          ls -lah work/scenes || true
+
+          # Make absolutely sure all five scenes exist
+          if [ ! -f work/scenes/scene1.png ] || \
+             [ ! -f work/scenes/scene2.png ] || \
+             [ ! -f work/scenes/scene3.png ] || \
+             [ ! -f work/scenes/scene4.png ] || \
+             [ ! -f work/scenes/scene5.png ]; then
+
+            echo "Some scenes are missing."
+            echo "Regenerating cinematic scenes..."
+
+            python work/create_scenes.py
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "VERIFYING SCENES"
+          echo "=========================================="
 
           for i in 1 2 3 4 5
           do
+            if [ ! -f "work/scenes/scene${i}.png" ]; then
+              echo "ERROR: scene${i}.png was not created."
+              exit 1
+            fi
+
+            ls -lh "work/scenes/scene${i}.png"
+          done
+
+          echo ""
+          echo "All five scenes exist."
+          echo ""
+
+          # ======================================
+          # CREATE MOVING VIDEO FROM EACH SCENE
+          # ======================================
+
+          for i in 1 2 3 4 5
+          do
+            echo "Animating scene ${i}..."
 
             ffmpeg -y \
               -loop 1 \
               -i "work/scenes/scene${i}.png" \
               -t 8 \
               -vf "zoompan=z='min(zoom+0.0008,1.07)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=240:s=1080x1920:fps=30,fade=t=in:st=0:d=0.5,fade=t=out:st=7.5:d=0.5" \
+              -an \
               -c:v libx264 \
               -preset veryfast \
               -crf 22 \
               -pix_fmt yuv420p \
               "work/scene${i}.mp4"
-
           done
+
+          echo ""
+          echo "=========================================="
+          echo "COMBINING CINEMATIC SCENES"
+          echo "=========================================="
 
           cat > work/concat.txt <<EOF
           file 'scene1.mp4'
@@ -432,8 +485,12 @@ jobs:
 
           cd ..
 
-          echo "Cinematic background created."
+          echo ""
+          echo "=========================================="
+          echo "CINEMATIC BACKGROUND CREATED"
+          echo "=========================================="
 
+          ls -lh work/background.mp4
       # ==========================================
       # CREATE PROFESSIONAL SUBTITLES
       # ==========================================
