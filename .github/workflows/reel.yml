@@ -194,8 +194,3 @@ jobs:
           name: deen-in-sec-hadith-001
           path: output/deen-in-sec-hadith-001.mp4
           retention-days: 7
-      - name: Upload Reel
-        uses: actions/upload-artifact@v4
-        with:
-          name: deen-in-sec-reel
-          path: output/*
