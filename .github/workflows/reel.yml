@@ -36,13 +36,17 @@ jobs:
 
       # ==========================================
       # GENERATE AI VOICE
-      # ==========================================
+      # =========================================
       - name: Generate voice
         run: |
-          mkdir -p output
+          mkdir -p work
           python -m piper.download_voices en_US-lessac-medium
-               echo "Your actions might look good, but what really matters is why you did them. The reward of deeds depends upon the intentions, and every person will get the reward according to what he has intended." | piper --model en_US-lessac-medium --output_file output/deen-in-sec-hadith-001.wav
 
+                                             echo "Your actions might look good, but what really matters is why you did them. The reward of deeds depends upon the intentions, and every person will get the reward according to what he has intended." | \
+                              piper \
+                                 --model en_US-lessac-medium \
+                                   --output_file work/voice.wav
+        
       # ==========================================
       # CREATE CINEMATIC ISLAMIC BACKGROUND
       # ==========================================
