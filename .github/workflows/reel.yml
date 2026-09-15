@@ -387,7 +387,7 @@ jobs:
 
           PYTHON
 
-          python work/create_scenes.py
+          
 
           ls -lh work/scenes/
 
