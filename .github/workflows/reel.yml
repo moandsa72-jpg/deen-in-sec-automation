@@ -385,10 +385,7 @@ jobs:
 
           print("Cinematic scenes created successfully.")
 
-          PYTHON
-
-          
-
+      
           
       # ==========================================
       # TURN SCENES INTO MOVING VIDEO
