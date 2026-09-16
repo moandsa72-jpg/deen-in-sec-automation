@@ -15,6 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
       # ==========================================
       # INSTALL TOOLS
       # ==========================================
@@ -25,9 +26,11 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow
 
+
       - name: Install Piper TTS
         run: |
           python3 -m pip install piper-tts
+
 
       # ==========================================
       # CREATE FOLDERS
@@ -39,6 +42,7 @@ jobs:
           mkdir -p work/images
           mkdir -p work/scenes
           mkdir -p output
+
 
       # ==========================================
       # CREATE CINEMATIC VISUALS
@@ -55,14 +59,12 @@ jobs:
           H = 1920
 
           GOLD = (205, 170, 95)
-          GOLD2 = (235, 205, 135)
-          WHITE = (235, 235, 230)
 
           random.seed(42)
 
           def gradient(top, bottom):
               img = Image.new("RGB", (W, H))
-              px = img.load()
+              draw = ImageDraw.Draw(img)
 
               for y in range(H):
                   t = y / (H - 1)
@@ -71,38 +73,49 @@ jobs:
                   g = int(top[1] * (1-t) + bottom[1] * t)
                   b = int(top[2] * (1-t) + bottom[2] * t)
 
-                  for x in range(W):
-                      px[x, y] = (r, g, b)
+                  draw.line(
+                      (0, y, W, y),
+                      fill=(r, g, b)
+                  )
 
               return img
 
+
           def vignette(img):
               overlay = Image.new("RGBA", (W, H), (0,0,0,0))
-              p = overlay.load()
+              draw = ImageDraw.Draw(overlay)
 
               cx = W / 2
               cy = H / 2
 
-              for y in range(H):
-                  for x in range(W):
+              for y in range(0, H, 8):
+                  for x in range(0, W, 8):
+
                       dx = (x-cx)/(W/2)
                       dy = (y-cy)/(H/2)
 
                       d = math.sqrt(dx*dx + dy*dy)
 
                       if d > 0.45:
-                          alpha = int(min(190, (d-0.45)*260))
-                          p[x,y] = (0,0,0,alpha)
+                          alpha = int(min(180, (d-0.45)*230))
 
-              return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+                          draw.rectangle(
+                              (x,y,x+8,y+8),
+                              fill=(0,0,0,alpha)
+                          )
 
-          def stars(img, amount=140):
+              return Image.alpha_composite(
+                  img.convert("RGBA"),
+                  overlay
+              ).convert("RGB")
+
+
+          def stars(img, amount=180):
               draw = ImageDraw.Draw(img)
 
               for _ in range(amount):
-                  x = random.randint(30, W-30)
-                  y = random.randint(30, 1250)
-
+                  x = random.randint(20, W-20)
+                  y = random.randint(20, 1250)
                   r = random.choice([1,1,1,2])
 
                   draw.ellipse(
@@ -110,424 +123,566 @@ jobs:
                       fill=(225,215,180)
                   )
 
+
           def glow(img, xy, radius, color, alpha):
-              layer = Image.new("RGBA", (W,H), (0,0,0,0))
+              layer = Image.new(
+                  "RGBA",
+                  (W,H),
+                  (0,0,0,0)
+              )
+
               draw = ImageDraw.Draw(layer)
 
               x,y = xy
 
-              for r in range(radius, 0, -15):
-                  a = int(alpha * (r/radius)**2)
+              draw.ellipse(
+                  (x-radius,y-radius,x+radius,y+radius),
+                  fill=(*color,alpha)
+              )
 
-                  draw.ellipse(
-                      (x-r,y-r,x+r,y+r),
-                      fill=(*color,a)
-                  )
-
-              layer = layer.filter(ImageFilter.GaussianBlur(20))
+              layer = layer.filter(
+                  ImageFilter.GaussianBlur(radius//3)
+              )
 
               return Image.alpha_composite(
                   img.convert("RGBA"),
                   layer
               ).convert("RGB")
 
-          def mosque_silhouette(img):
+
+          def mosque(img):
               draw = ImageDraw.Draw(img)
 
-              base_y = 1510
+              base = 1530
 
-              # main building
+              # Main building
               draw.rectangle(
-                  (180,1050,900,base_y),
-                  fill=(8,13,16)
+                  (160,1050,920,base),
+                  fill=(5,9,12)
               )
 
-              # central dome
+              # Dome
               draw.ellipse(
-                  (360,700,720,1120),
-                  fill=(7,12,15)
+                  (350,690,730,1120),
+                  fill=(5,9,12)
               )
 
               draw.rectangle(
-                  (360,900,720,1120),
-                  fill=(7,12,15)
+                  (350,880,730,1120),
+                  fill=(5,9,12)
               )
 
-              # dome tip
+              # Dome point
               draw.polygon(
-                  [(540,650),(515,710),(565,710)],
-                  fill=(7,12,15)
+                  [(540,625),(510,700),(570,700)],
+                  fill=(5,9,12)
               )
 
-              # left minaret
-              draw.rectangle(
-                  (210,650,280,1510),
-                  fill=(6,11,14)
-              )
+              # Minarets
+              for cx in [235,845]:
 
-              draw.ellipse(
-                  (190,600,300,700),
-                  fill=(6,11,14)
-              )
-
-              draw.polygon(
-                  [(245,510),(205,610),(285,610)],
-                  fill=(6,11,14)
-              )
-
-              # right minaret
-              draw.rectangle(
-                  (800,650,870,1510),
-                  fill=(6,11,14)
-              )
-
-              draw.ellipse(
-                  (780,600,890,700),
-                  fill=(6,11,14)
-              )
-
-              draw.polygon(
-                  [(835,510),(795,610),(875,610)],
-                  fill=(6,11,14)
-              )
-
-              # arches
-              for x in [270,390,510,630,750]:
                   draw.rectangle(
-                      (x,1180,x+80,1510),
-                      fill=(5,9,12)
+                      (cx-35,650,cx+35,1530),
+                      fill=(4,8,11)
                   )
 
                   draw.ellipse(
-                      (x,1120,x+80,1240),
-                      fill=(5,9,12)
+                      (cx-55,590,cx+55,700),
+                      fill=(4,8,11)
                   )
 
-              # golden windows
-              for x in [295,415,535,655,775]:
+                  draw.polygon(
+                      [
+                          (cx,500),
+                          (cx-40,610),
+                          (cx+40,610)
+                      ],
+                      fill=(4,8,11)
+                  )
+
+              # Arches
+              for x in [260,380,500,620,740]:
+
                   draw.rectangle(
-                      (x,1260,x+30,1390),
-                      fill=(115,91,45)
+                      (x,1180,x+75,1530),
+                      fill=(3,7,10)
                   )
 
+                  draw.ellipse(
+                      (x,1110,x+75,1240),
+                      fill=(3,7,10)
+                  )
+
+              # Windows
+              for x in [285,405,525,645,765]:
+
+                  draw.rectangle(
+                      (x,1260,x+28,1400),
+                      fill=(105,82,40)
+                  )
+
+
           # ==========================================
-          # SCENE 1 — MOSQUE AT NIGHT
+          # SCENE 1
           # ==========================================
+
           img = gradient(
-              (4,12,20),
-              (16,28,31)
+              (3,10,18),
+              (13,25,30)
           )
 
-          img = glow(img,(540,800),420,GOLD,25)
-
-          stars(img,170)
-          mosque_silhouette(img)
-
-          # subtle horizon
-          draw = ImageDraw.Draw(img)
-
-          draw.rectangle(
-              (0,1510,W,H),
-              fill=(4,8,10)
+          img = glow(
+              img,
+              (540,760),
+              500,
+              GOLD,
+              32
           )
 
-          # golden horizon light
-          for i in range(8):
-              alpha = 30 - i*3
-              draw.rectangle(
-                  (0,1490+i*3,W,1493+i*3),
-                  fill=(70,55,30)
-              )
+          stars(img,220)
+          mosque(img)
 
           img = vignette(img)
 
-          img.save("work/images/scene1.png", quality=95)
-
-
-          # ==========================================
-          # SCENE 2 — BOOK / HADITH
-          # ==========================================
-          img = gradient(
-              (8,14,20),
-              (22,19,14)
+          img.save(
+              "work/images/scene1.png",
+              quality=95
           )
 
-          img = glow(img,(540,780),500,GOLD,35)
+
+          # ==========================================
+          # SCENE 2 — HADITH BOOK
+          # ==========================================
+
+          img = gradient(
+              (5,11,18),
+              (24,19,13)
+          )
+
+          img = glow(
+              img,
+              (540,760),
+              520,
+              GOLD,
+              38
+          )
 
           draw = ImageDraw.Draw(img)
 
-          # table
+          # Table
           draw.rectangle(
               (0,1370,W,H),
-              fill=(10,8,6)
+              fill=(8,7,6)
           )
 
-          # book shadow
+          # Shadow
           draw.rounded_rectangle(
-              (190,920,890,1430),
-              radius=40,
-              fill=(2,3,4)
+              (160,900,920,1450),
+              radius=45,
+              fill=(1,2,3)
           )
 
-          # left page
+          # Left page
           draw.polygon(
-              [(230,880),(535,960),(535,1370),(230,1280)],
-              fill=(205,193,160)
+              [
+                  (210,870),
+                  (535,960),
+                  (535,1375),
+                  (210,1280)
+              ],
+              fill=(205,191,155)
           )
 
-          # right page
+          # Right page
           draw.polygon(
-              [(545,960),(850,880),(850,1280),(545,1370)],
-              fill=(224,211,177)
+              [
+                  (545,960),
+                  (870,870),
+                  (870,1280),
+                  (545,1375)
+              ],
+              fill=(224,211,176)
           )
 
-          # book center
+          # Center
           draw.line(
-              (540,955,540,1375),
-              fill=(110,90,55),
+              (540,950,540,1380),
+              fill=(110,88,50),
               width=7
           )
 
-          # page lines
+          # Page writing
           for i in range(7):
-              y = 1010 + i*43
+
+              y = 1010 + i*45
 
               draw.line(
-                  (285,y,500,y+65),
-                  fill=(125,108,76),
+                  (275,y,495,y+60),
+                  fill=(120,102,70),
                   width=3
               )
 
               draw.line(
-                  (580,y+65,800,y),
-                  fill=(125,108,76),
+                  (585,y+60,805,y),
+                  fill=(120,102,70),
                   width=3
               )
 
-          # golden bookmark
+          # Bookmark
           draw.polygon(
-              [(535,950),(565,950),(565,1400),(550,1375),(535,1400)],
+              [
+                  (530,950),
+                  (565,950),
+                  (565,1405),
+                  (548,1380),
+                  (530,1405)
+              ],
               fill=GOLD
           )
 
           img = vignette(img)
 
-          img.save("work/images/scene2.png", quality=95)
-
-
-          # ==========================================
-          # SCENE 3 — NIGHT SKY / REFLECTION
-          # ==========================================
-          img = gradient(
-              (3,8,18),
-              (13,31,36)
+          img.save(
+              "work/images/scene2.png",
+              quality=95
           )
 
-          stars(img,260)
 
-          img = glow(img,(760,620),260,(210,190,130),25)
+          # ==========================================
+          # SCENE 3 — NIGHT / MOON / LANDSCAPE
+          # ==========================================
+
+          img = gradient(
+              (2,7,17),
+              (12,29,36)
+          )
+
+          stars(img,300)
+
+          img = glow(
+              img,
+              (790,430),
+              300,
+              (220,200,145),
+              35
+          )
 
           draw = ImageDraw.Draw(img)
 
-          # moon
+          # Moon
           draw.ellipse(
-              (720,380,880,540),
+              (700,340,870,510),
               fill=(220,211,180)
           )
 
           draw.ellipse(
-              (680,350,840,510),
-              fill=(5,12,22)
+              (665,315,835,485),
+              fill=(3,9,18)
           )
 
-          # mountains
+          # Mountains
           draw.polygon(
-              [(0,1450),(240,1180),(430,1450),(650,1100),(1080,1500),(1080,H),(0,H)],
-              fill=(5,12,15)
+              [
+                  (0,1450),
+                  (250,1160),
+                  (470,1450),
+                  (690,1110),
+                  (1080,1500),
+                  (1080,H),
+                  (0,H)
+              ],
+              fill=(4,11,15)
           )
 
-          # reflection water
-          for i in range(20):
-              y = 1530 + i*18
-              width = random.randint(100,500)
-              x = random.randint(150,700)
+          # Water
+          for i in range(22):
+
+              y = 1530 + i*17
+
+              x = random.randint(100,700)
+              width = random.randint(120,500)
 
               draw.line(
                   (x,y,x+width,y),
-                  fill=(85,75,48),
+                  fill=(75,67,45),
                   width=random.randint(1,3)
               )
 
           img = vignette(img)
 
-          img.save("work/images/scene3.png", quality=95)
+          img.save(
+              "work/images/scene3.png",
+              quality=95
+          )
 
 
           # ==========================================
           # SCENE 4 — MOSQUE INTERIOR
           # ==========================================
+
           img = gradient(
-              (5,10,14),
-              (22,18,12)
+              (4,9,14),
+              (23,18,12)
           )
 
-          img = glow(img,(540,500),650,GOLD,35)
+          img = glow(
+              img,
+              (540,500),
+              650,
+              GOLD,
+              40
+          )
 
           draw = ImageDraw.Draw(img)
 
-          # large central arch
+          # Outer arch
           draw.polygon(
-              [(180,1500),(180,850),(300,620),(540,520),(780,620),(900,850),(900,1500)],
-              fill=(10,15,17)
+              [
+                  (150,1500),
+                  (150,850),
+                  (280,620),
+                  (540,500),
+                  (800,620),
+                  (930,850),
+                  (930,1500)
+              ],
+              fill=(9,14,17)
           )
 
-          # inner arch
+          # Inner arch
           draw.polygon(
-              [(280,1500),(280,900),(360,730),(540,650),(720,730),(800,900),(800,1500)],
-              fill=(5,9,12)
+              [
+                  (270,1500),
+                  (270,900),
+                  (360,730),
+                  (540,640),
+                  (720,730),
+                  (810,900),
+                  (810,1500)
+              ],
+              fill=(4,8,11)
           )
 
-          # windows / light
+          # Windows
           for x in [380,465,550,635]:
+
               draw.rectangle(
-                  (x,760,x+35,1030),
-                  fill=(100,83,48)
+                  (x,760,x+35,1050),
+                  fill=(105,83,48)
               )
 
-          # floor
+          # Floor
           draw.polygon(
-              [(180,1500),(900,1500),(1080,H),(0,H)],
-              fill=(9,10,9)
+              [
+                  (150,1500),
+                  (930,1500),
+                  (1080,H),
+                  (0,H)
+              ],
+              fill=(7,9,9)
           )
 
-          # prayer rug lines
-          for i in range(8):
-              y = 1550 + i*45
+          # Floor lines
+          for i in range(9):
+
+              y = 1540 + i*45
 
               draw.line(
-                  (250,y,830,y),
-                  fill=(55,47,31),
+                  (230,y,850,y),
+                  fill=(50,43,30),
                   width=3
               )
 
-          # rays
-          ray = Image.new("RGBA",(W,H),(0,0,0,0))
-          rd = ImageDraw.Draw(ray)
-
-          rd.polygon(
-              [(500,550),(580,550),(900,1450),(180,1450)],
-              fill=(230,205,145,25)
+          # Light rays
+          rays = Image.new(
+              "RGBA",
+              (W,H),
+              (0,0,0,0)
           )
 
-          ray = ray.filter(ImageFilter.GaussianBlur(25))
+          rd = ImageDraw.Draw(rays)
+
+          rd.polygon(
+              [
+                  (480,550),
+                  (600,550),
+                  (950,1450),
+                  (130,1450)
+              ],
+              fill=(235,205,140,25)
+          )
+
+          rays = rays.filter(
+              ImageFilter.GaussianBlur(35)
+          )
 
           img = Image.alpha_composite(
               img.convert("RGBA"),
-              ray
+              rays
           ).convert("RGB")
 
           img = vignette(img)
 
-          img.save("work/images/scene4.png", quality=95)
-
-
-          # ==========================================
-          # SCENE 5 — DAWN / CLOSING
-          # ==========================================
-          img = gradient(
-              (7,15,24),
-              (48,38,25)
+          img.save(
+              "work/images/scene4.png",
+              quality=95
           )
 
-          img = glow(img,(540,1150),520,GOLD,40)
+
+          # ==========================================
+          # SCENE 5 — DAWN
+          # ==========================================
+
+          img = gradient(
+              (5,13,23),
+              (55,39,23)
+          )
+
+          img = glow(
+              img,
+              (540,1100),
+              550,
+              GOLD,
+              45
+          )
 
           draw = ImageDraw.Draw(img)
 
-          # dawn horizon
-          for y in range(1120,1500):
-              t=(y-1120)/380
-              r=int(35+80*t)
-              g=int(28+65*t)
-              b=int(20+35*t)
+          # Horizon
+          for y in range(1050,1500):
+
+              t = (y-1050)/450
+
+              r = int(35+75*t)
+              g = int(27+58*t)
+              b = int(19+35*t)
 
               draw.line(
                   (0,y,W,y),
                   fill=(r,g,b)
               )
 
-          # sun
+          # Sun
           draw.ellipse(
-              (430,980,650,1200),
+              (430,960,650,1180),
               fill=(225,190,110)
           )
 
-          # foreground
+          # Foreground
           draw.polygon(
-              [(0,1460),(260,1350),(500,1450),(720,1320),(1080,1450),(1080,H),(0,H)],
-              fill=(5,9,11)
+              [
+                  (0,1480),
+                  (250,1340),
+                  (500,1450),
+                  (720,1320),
+                  (1080,1450),
+                  (1080,H),
+                  (0,H)
+              ],
+              fill=(4,8,10)
           )
 
-          # mosque silhouette
-          mosque_silhouette(img)
+          mosque(img)
 
           img = vignette(img)
 
-          img.save("work/images/scene5.png", quality=95)
+          img.save(
+              "work/images/scene5.png",
+              quality=95
+          )
 
-          print("ALL CINEMATIC VISUALS CREATED")
+          print("CINEMATIC ARTWORK CREATED")
 
           PY
 
           python3 work/create_visuals.py
 
-          ls -lh work/images/
-
 
       # ==========================================
-      # VOICE SCRIPT
+      # VOICE SEGMENTS
       # ==========================================
-      - name: Create voice script
+      - name: Create voice segments
         run: |
-          cat > work/script.txt <<'EOF'
+
+          cat > work/part1.txt <<'EOF'
           Your actions might look good...
           but what really matters is WHY you did them.
+          EOF
 
+          cat > work/part2.txt <<'EOF'
           The Prophet Muhammad, peace and blessings be upon him, said:
+          EOF
 
+          cat > work/part3.txt <<'EOF'
           The reward of deeds depends upon the intentions,
           and every person will get the reward according to what they have intended.
+          EOF
 
-          So before you act, ask yourself:
-
+          cat > work/part4.txt <<'EOF'
+          So before you act, ask yourself...
           Why am I doing this?
+          EOF
 
+          cat > work/part5.txt <<'EOF'
           A sincere intention can turn a small action into a great reward.
+          EOF
 
+          cat > work/part6.txt <<'EOF'
           What will you make your intention for today?
+          EOF
 
+          cat > work/part7.txt <<'EOF'
           Sahih al-Bukhari 1.
           Narrated by Umar ibn al-Khattab.
           EOF
 
+          for i in 1 2 3 4 5 6 7
+          do
+            python3 -m piper.download_voices en_US-hfc_male-medium
+
+            cat work/part$i.txt | \
+            piper \
+              --model en_US-hfc_male-medium \
+              --output_file work/raw$i.wav
+
+            ffmpeg -y \
+              -i work/raw$i.wav \
+              -filter:a "atempo=0.90" \
+              work/part$i.wav
+          done
+
 
       # ==========================================
-      # GENERATE CALM MALE VOICE
+      # ADD NATURAL PAUSES
       # ==========================================
-      - name: Generate male voice
+      - name: Build final voice
         run: |
-          python3 -m piper.download_voices en_US-hfc_male-medium
-
-          cat work/script.txt | \
-          piper \
-            --model en_US-hfc_male-medium \
-            --output_file work/voice_raw.wav
 
           ffmpeg -y \
-            -i work/voice_raw.wav \
-            -filter:a "atempo=0.94" \
+            -i work/part1.wav \
+            -i work/part2.wav \
+            -i work/part3.wav \
+            -i work/part4.wav \
+            -i work/part5.wav \
+            -i work/part6.wav \
+            -i work/part7.wav \
+            -filter_complex "
+              anullsrc=r=22050:cl=mono:d=0.8[s1];
+              anullsrc=r=22050:cl=mono:d=0.6[s2];
+              anullsrc=r=22050:cl=mono:d=0.9[s3];
+              anullsrc=r=22050:cl=mono:d=0.8[s4];
+              anullsrc=r=22050:cl=mono:d=0.8[s5];
+              anullsrc=r=22050:cl=mono:d=0.7[s6];
+
+              [0:a][s1][1:a][s2][2:a][s3][3:a][s4][4:a][s5][5:a][s6][6:a]
+              concat=n=13:v=0:a=1
+              [voice]
+            " \
+            -map "[voice]" \
+            -c:a pcm_s16le \
             work/voice.wav
 
-          echo "VOICE CREATED"
+          echo "FINAL VOICE CREATED"
 
           ffprobe \
             -v error \
@@ -537,7 +692,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE ANIMATED SCENE 1
+      # ANIMATE SCENE 1
       # ==========================================
       - name: Animate scene 1
         run: |
@@ -545,12 +700,7 @@ jobs:
             -loop 1 \
             -i work/images/scene1.png \
             -t 8 \
-            -vf "
-              zoompan=z='min(zoom+0.0007,1.08)':d=240:s=1080x1920:fps=30,
-              format=yuv420p,
-              noise=alls=8:allf=t+u,
-              vignette
-            " \
+            -vf "zoompan=z='min(zoom+0.0007,1.08)':d=240:s=1080x1920:fps=30,format=yuv420p" \
             -c:v libx264 \
             -preset veryfast \
             -crf 20 \
@@ -559,7 +709,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE ANIMATED SCENE 2
+      # ANIMATE SCENE 2
       # ==========================================
       - name: Animate scene 2
         run: |
@@ -567,12 +717,7 @@ jobs:
             -loop 1 \
             -i work/images/scene2.png \
             -t 8 \
-            -vf "
-              zoompan=z='min(zoom+0.0005,1.07)':d=240:s=1080x1920:fps=30,
-              format=yuv420p,
-              noise=alls=7:allf=t+u,
-              vignette
-            " \
+            -vf "zoompan=z='min(zoom+0.0005,1.07)':d=240:s=1080x1920:fps=30,format=yuv420p" \
             -c:v libx264 \
             -preset veryfast \
             -crf 20 \
@@ -581,7 +726,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE ANIMATED SCENE 3
+      # ANIMATE SCENE 3
       # ==========================================
       - name: Animate scene 3
         run: |
@@ -589,12 +734,7 @@ jobs:
             -loop 1 \
             -i work/images/scene3.png \
             -t 8 \
-            -vf "
-              zoompan=z='min(zoom+0.0006,1.075)':d=240:s=1080x1920:fps=30,
-              format=yuv420p,
-              noise=alls=8:allf=t+u,
-              vignette
-            " \
+            -vf "zoompan=z='min(zoom+0.0006,1.075)':d=240:s=1080x1920:fps=30,format=yuv420p" \
             -c:v libx264 \
             -preset veryfast \
             -crf 20 \
@@ -603,7 +743,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE ANIMATED SCENE 4
+      # ANIMATE SCENE 4
       # ==========================================
       - name: Animate scene 4
         run: |
@@ -611,12 +751,7 @@ jobs:
             -loop 1 \
             -i work/images/scene4.png \
             -t 8 \
-            -vf "
-              zoompan=z='min(zoom+0.0005,1.07)':d=240:s=1080x1920:fps=30,
-              format=yuv420p,
-              noise=alls=7:allf=t+u,
-              vignette
-            " \
+            -vf "zoompan=z='min(zoom+0.0005,1.07)':d=240:s=1080x1920:fps=30,format=yuv420p" \
             -c:v libx264 \
             -preset veryfast \
             -crf 20 \
@@ -625,7 +760,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE ANIMATED SCENE 5
+      # ANIMATE SCENE 5
       # ==========================================
       - name: Animate scene 5
         run: |
@@ -633,12 +768,7 @@ jobs:
             -loop 1 \
             -i work/images/scene5.png \
             -t 8 \
-            -vf "
-              zoompan=z='min(zoom+0.0004,1.06)':d=240:s=1080x1920:fps=30,
-              format=yuv420p,
-              noise=alls=7:allf=t+u,
-              vignette
-            " \
+            -vf "zoompan=z='min(zoom+0.0004,1.06)':d=240:s=1080x1920:fps=30,format=yuv420p" \
             -c:v libx264 \
             -preset veryfast \
             -crf 20 \
@@ -651,6 +781,7 @@ jobs:
       # ==========================================
       - name: Join cinematic scenes
         run: |
+
           cat > work/scenes.txt <<'EOF'
           file 'scenes/scene1.mp4'
           file 'scenes/scene2.mp4'
@@ -676,10 +807,11 @@ jobs:
 
 
       # ==========================================
-      # CREATE SUBTITLES
+      # SUBTITLES
       # ==========================================
       - name: Create subtitles
         run: |
+
           cat > work/subtitles.ass <<'EOF'
           [Script Info]
           ScriptType: v4.00+
@@ -687,50 +819,4 @@ jobs:
           PlayResY: 1920
 
           [V4+ Styles]
-          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Alignment, MarginL, MarginR, MarginV, Encoding
-          Style: Main,DejaVu Sans,62,&H00FFFFFF,&H00FFFFFF,&H00120E08,&HAA000000,1,0,5,130,130,430,1
-
-          [Events]
-          Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-
-          Dialogue: 0,0:00:00.00,0:00:03.50,Main,,0,0,0,,YOUR ACTIONS MIGHT LOOK GOOD...
-          Dialogue: 0,0:00:03.50,0:00:07.50,Main,,0,0,0,,BUT WHAT REALLY MATTERS IS WHY YOU DID THEM.
-
-          Dialogue: 0,0:00:07.50,0:00:11.50,Main,,0,0,0,,The Prophet Muhammad, peace and blessings be upon him, said:
-
-          Dialogue: 0,0:00:11.50,0:00:17.00,Main,,0,0,0,,The reward of deeds depends upon the intentions,
-
-          Dialogue: 0,0:00:17.00,0:00:23.00,Main,,0,0,0,,and every person will get the reward according to what they have intended.
-
-          Dialogue: 0,0:00:23.00,0:00:27.00,Main,,0,0,0,,So before you act, ask yourself:
-
-          Dialogue: 0,0:00:27.00,0:00:29.80,Main,,0,0,0,,WHY AM I DOING THIS?
-
-          Dialogue: 0,0:00:29.80,0:00:35.00,Main,,0,0,0,,A sincere intention can turn a small action into a great reward.
-
-          Dialogue: 0,0:00:35.00,0:00:38.00,Main,,0,0,0,,WHAT WILL YOU MAKE YOUR INTENTION FOR TODAY?
-
-          Dialogue: 0,0:00:38.00,0:00:40.00,Main,,0,0,0,,SAHIH AL-BUKHARI 1 • UMAR IBN AL-KHATTAB
-
-          EOF
-
-
-      # ==========================================
-      # RENDER FINAL REEL
-      # ==========================================
-      - name: Render final Reel
-        run: |
-          ffmpeg -y \
-            -i work/background.mp4 \
-            -i work/voice.wav \
-            -filter_complex "
-              [0:v]
-              fade=t=in:st=0:d=1,
-              fade=t=out:st=38:d=2,
-              subtitles=work/subtitles.ass
-              [video]
-            " \
-            -map "[video]" \
-            -map 1:a \
-            -t 40 \
-            -
+          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, It
