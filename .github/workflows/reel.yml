@@ -1,4 +1,4 @@
-name: Deen in Sec - Create Reel
+name: Deen in Sec - Create Reel V5
 
 on:
   workflow_dispatch:
@@ -9,131 +9,120 @@ jobs:
 
     steps:
 
-      # ==========================================
-      # CHECKOUT
-      # ==========================================
+      # ============================================================
+      # 1. CHECKOUT
+      # ============================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ==========================================
-      # INSTALL TOOLS
-      # ==========================================
-      - name: Install tools
+
+      # ============================================================
+      # 2. INSTALL TOOLS
+      # ============================================================
+      - name: Install FFmpeg and fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu python3-pip
+          sudo apt-get install -y ffmpeg fonts-dejavu fonts-liberation2
+          ffmpeg -version
+          python3 --version
+
+
+      - name: Install Python packages
+        run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow
 
-      # ==========================================
-      # INSTALL PIPER
-      # ==========================================
+
       - name: Install Piper TTS
         run: |
           python3 -m pip install piper-tts
 
-      # ==========================================
-      # CREATE FOLDERS
-      # ==========================================
-      - name: Create folders
+
+      # ============================================================
+      # 3. CREATE WORK DIRECTORIES
+      # ============================================================
+      - name: Prepare folders
         run: |
           rm -rf work
+          rm -rf output
+
           mkdir -p work
-          mkdir -p work/images
           mkdir -p work/scenes
+          mkdir -p work/voice
+          mkdir -p work/audio
+          mkdir -p work/video
+          mkdir -p work/subtitles
           mkdir -p output
 
-      # ==========================================
-      # CREATE CINEMATIC VISUAL ARTWORK
-      # ==========================================
-      - name: Create cinematic visual artwork
+
+      # ============================================================
+      # 4. CREATE CINEMATIC SCENE GENERATOR
+      # ============================================================
+      - name: Create cinematic scene generator
         run: |
-
-          cat > work/create_visuals.py <<'PY'
-
-          from PIL import Image, ImageDraw, ImageFilter
-          import random
+          cat > work/create_cinematic_scenes.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFilter, ImageEnhance
           import math
+          import random
+          import os
 
-          W = 1080
-          H = 1920
+          W = 1440
+          H = 2560
 
-          GOLD = (205, 170, 95)
+          OUT = "work/scenes"
+          os.makedirs(OUT, exist_ok=True)
 
-          random.seed(42)
+          random.seed(20260916)
+
+
+          # --------------------------------------------------------
+          # Helpers
+          # --------------------------------------------------------
 
           def gradient(top, bottom):
-
               img = Image.new("RGB", (W, H))
-              draw = ImageDraw.Draw(img)
+              px = img.load()
 
               for y in range(H):
-
                   t = y / (H - 1)
 
                   r = int(top[0] * (1 - t) + bottom[0] * t)
                   g = int(top[1] * (1 - t) + bottom[1] * t)
                   b = int(top[2] * (1 - t) + bottom[2] * t)
 
-                  draw.line(
-                      (0, y, W, y),
-                      fill=(r, g, b)
-                  )
+                  for x in range(W):
+                      px[x, y] = (r, g, b)
 
               return img
 
-          def vignette(img):
 
-              overlay = Image.new(
-                  "RGBA",
-                  (W, H),
-                  (0, 0, 0, 0)
-              )
-
-              draw = ImageDraw.Draw(overlay)
+          def add_vignette(img, strength=0.72):
+              overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              p = overlay.load()
 
               cx = W / 2
               cy = H / 2
 
-              for y in range(0, H, 12):
+              maxdist = math.sqrt(cx * cx + cy * cy)
 
-                  for x in range(0, W, 12):
+              for y in range(H):
+                  for x in range(W):
+                      dx = x - cx
+                      dy = y - cy
 
-                      dx = (x - cx) / (W / 2)
-                      dy = (y - cy) / (H / 2)
+                      d = math.sqrt(dx * dx + dy * dy) / maxdist
+                      alpha = int(max(0, min(210, (d ** 2.1) * 255 * strength)))
 
-                      distance = math.sqrt(dx * dx + dy * dy)
+                      p[x, y] = (0, 0, 0, alpha)
 
-                      if distance > 0.45:
+              return Image.alpha_composite(img.convert("RGBA"), overlay)
 
-                          alpha = int(
-                              min(
-                                  170,
-                                  (distance - 0.45) * 220
-                              )
-                          )
 
-                          draw.rectangle(
-                              (x, y, x + 12, y + 12),
-                              fill=(0, 0, 0, alpha)
-                          )
+          def add_glow(base, x, y, radius, color, alpha):
+              glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              gd = ImageDraw.Draw(glow)
 
-              return Image.alpha_composite(
-                  img.convert("RGBA"),
-                  overlay
-              ).convert("RGB")
-
-          def glow(img, x, y, radius, color, alpha):
-
-              layer = Image.new(
-                  "RGBA",
-                  (W, H),
-                  (0, 0, 0, 0)
-              )
-
-              draw = ImageDraw.Draw(layer)
-
-              draw.ellipse(
+              gd.ellipse(
                   (
                       x - radius,
                       y - radius,
@@ -143,783 +132,1194 @@ jobs:
                   fill=(*color, alpha)
               )
 
-              layer = layer.filter(
-                  ImageFilter.GaussianBlur(radius // 3)
-              )
+              glow = glow.filter(ImageFilter.GaussianBlur(radius // 2))
 
-              return Image.alpha_composite(
-                  img.convert("RGBA"),
-                  layer
-              ).convert("RGB")
+              return Image.alpha_composite(base, glow)
 
-          def stars(img, amount):
 
-              draw = ImageDraw.Draw(img)
+          def add_stars(base, count=170):
+              layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(layer)
 
-              for _ in range(amount):
+              for _ in range(count):
+                  x = random.randint(30, W - 30)
+                  y = random.randint(40, int(H * 0.55))
 
-                  x = random.randint(20, W - 20)
-                  y = random.randint(20, 1250)
+                  r = random.choice([1, 1, 1, 2, 2, 3])
+                  a = random.randint(80, 190)
 
-                  radius = random.choice([1, 1, 1, 2])
-
-                  draw.ellipse(
-                      (
-                          x - radius,
-                          y - radius,
-                          x + radius,
-                          y + radius
-                      ),
-                      fill=(225, 215, 180)
+                  d.ellipse(
+                      (x-r, y-r, x+r, y+r),
+                      fill=(255, 245, 215, a)
                   )
 
-          def draw_mosque(img):
+              return Image.alpha_composite(base, layer)
 
-              draw = ImageDraw.Draw(img)
 
-              base = 1530
+          def add_particles(base, count=80):
+              layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(layer)
 
-              draw.rectangle(
-                  (150, 1050, 930, base),
-                  fill=(3, 7, 10)
+              for _ in range(count):
+                  x = random.randint(0, W)
+                  y = random.randint(0, H)
+
+                  r = random.choice([2, 3, 4, 6])
+                  a = random.randint(20, 90)
+
+                  d.ellipse(
+                      (x-r, y-r, x+r, y+r),
+                      fill=(245, 218, 160, a)
+                  )
+
+              layer = layer.filter(ImageFilter.GaussianBlur(1.5))
+
+              return Image.alpha_composite(base, layer)
+
+
+          def add_light_rays(base, origin_x, origin_y):
+              layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(layer)
+
+              for i in range(7):
+                  spread = 120 + i * 90
+
+                  points = [
+                      (origin_x, origin_y),
+                      (origin_x - spread, origin_y + 1100),
+                      (origin_x + spread, origin_y + 1100)
+                  ]
+
+                  d.polygon(
+                      points,
+                      fill=(255, 205, 115, 9)
+                  )
+
+              layer = layer.filter(ImageFilter.GaussianBlur(22))
+
+              return Image.alpha_composite(base, layer)
+
+
+          def mosque_silhouette(base, horizon=1880):
+              layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(layer)
+
+              dark = (8, 9, 13, 255)
+
+              # Main building
+              d.rectangle(
+                  (180, horizon - 250, W - 180, H),
+                  fill=dark
               )
 
-              draw.ellipse(
-                  (350, 680, 730, 1120),
-                  fill=(3, 7, 10)
+              # Main dome
+              d.ellipse(
+                  (430, horizon - 650, 1010, horizon - 70),
+                  fill=dark
               )
 
-              draw.rectangle(
-                  (350, 880, 730, 1120),
-                  fill=(3, 7, 10)
+              # Dome base
+              d.rectangle(
+                  (500, horizon - 390, 940, horizon),
+                  fill=dark
               )
 
-              draw.polygon(
+              # Dome finial
+              d.rectangle(
+                  (712, horizon - 720, 728, horizon - 630),
+                  fill=dark
+              )
+
+              d.polygon(
                   [
-                      (540, 600),
-                      (495, 700),
-                      (585, 700)
+                      (720, horizon - 770),
+                      (700, horizon - 715),
+                      (740, horizon - 715)
                   ],
-                  fill=(3, 7, 10)
+                  fill=dark
               )
 
-              for cx in [230, 850]:
-
-                  draw.rectangle(
-                      (cx - 34, 650, cx + 34, 1530),
-                      fill=(2, 6, 9)
+              # Minarets
+              for x in [270, 1080]:
+                  d.rectangle(
+                      (x, horizon - 820, x + 70, horizon),
+                      fill=dark
                   )
 
-                  draw.ellipse(
-                      (cx - 54, 590, cx + 54, 700),
-                      fill=(2, 6, 9)
+                  d.rectangle(
+                      (x - 25, horizon - 850, x + 95, horizon - 810),
+                      fill=dark
                   )
 
-                  draw.polygon(
+                  d.polygon(
                       [
-                          (cx, 485),
-                          (cx - 40, 610),
-                          (cx + 40, 610)
+                          (x + 35, horizon - 960),
+                          (x - 5, horizon - 850),
+                          (x + 75, horizon - 850)
                       ],
-                      fill=(2, 6, 9)
+                      fill=dark
                   )
 
-              for x in [250, 380, 510, 640, 770]:
+              # Door
+              d.ellipse(
+                  (670, horizon - 260, 770, horizon + 30),
+                  fill=(2, 3, 5, 255)
+              )
 
-                  draw.rectangle(
-                      (x, 1180, x + 70, 1530),
-                      fill=(1, 5, 8)
-                  )
+              # Windows
+              for row in range(2):
+                  yy = horizon - 190 + row * 95
 
-                  draw.ellipse(
-                      (x, 1110, x + 70, 1240),
-                      fill=(1, 5, 8)
-                  )
+                  for xx in [310, 420, 1020, 1130]:
+                      d.rounded_rectangle(
+                          (xx, yy, xx + 55, yy + 95),
+                          radius=25,
+                          fill=(35, 29, 18, 255)
+                      )
 
-              for x in [275, 405, 535, 665, 795]:
+              return Image.alpha_composite(base, layer)
 
-                  draw.rectangle(
-                      (x, 1260, x + 25, 1400),
-                      fill=(100, 78, 40)
-                  )
 
-          # ==========================================
-          # SCENE 1
-          # ==========================================
+          def add_cinematic_grain(base):
+              layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(layer)
 
-          img = gradient(
-              (2, 7, 15),
-              (12, 25, 31)
+              for _ in range(9000):
+                  x = random.randrange(W)
+                  y = random.randrange(H)
+
+                  if random.random() < 0.5:
+                      a = random.randint(5, 18)
+                      c = random.randint(120, 230)
+                      d.point((x, y), fill=(c, c, c, a))
+
+              return Image.alpha_composite(base, layer)
+
+
+          def save(img, filename):
+              img = img.convert("RGB")
+              img = ImageEnhance.Contrast(img).enhance(1.08)
+              img = ImageEnhance.Color(img).enhance(0.92)
+
+              img.save(
+                  os.path.join(OUT, filename),
+                  quality=96
+              )
+
+
+          # ========================================================
+          # SCENE 1 — NIGHT MOSQUE
+          # ========================================================
+
+          scene = gradient(
+              (5, 9, 18),
+              (24, 19, 17)
           )
 
-          img = glow(
-              img,
-              540,
-              700,
+          scene = add_stars(scene, 220)
+
+          scene = add_glow(
+              scene,
+              1080,
               520,
-              GOLD,
-              38
-          )
-
-          stars(img, 220)
-          draw_mosque(img)
-
-          img = vignette(img)
-
-          img.save("work/images/scene1.png")
-
-          # ==========================================
-          # SCENE 2
-          # ==========================================
-
-          img = gradient(
-              (4, 10, 17),
-              (27, 20, 13)
-          )
-
-          img = glow(
-              img,
-              540,
-              750,
-              500,
-              GOLD,
-              42
-          )
-
-          draw = ImageDraw.Draw(img)
-
-          draw.rectangle(
-              (0, 1370, W, H),
-              fill=(6, 5, 4)
-          )
-
-          draw.rounded_rectangle(
-              (140, 870, 940, 1470),
-              radius=45,
-              fill=(1, 2, 3)
-          )
-
-          draw.polygon(
-              [
-                  (200, 850),
-                  (535, 950),
-                  (535, 1390),
-                  (200, 1280)
-              ],
-              fill=(203, 188, 151)
-          )
-
-          draw.polygon(
-              [
-                  (545, 950),
-                  (880, 850),
-                  (880, 1280),
-                  (545, 1390)
-              ],
-              fill=(225, 210, 174)
-          )
-
-          draw.line(
-              (540, 945, 540, 1390),
-              fill=(105, 82, 45),
-              width=7
-          )
-
-          for i in range(7):
-
-              y = 1010 + i * 45
-
-              draw.line(
-                  (275, y, 495, y + 55),
-                  fill=(115, 96, 65),
-                  width=3
-              )
-
-              draw.line(
-                  (585, y + 55, 805, y),
-                  fill=(115, 96, 65),
-                  width=3
-              )
-
-          draw.polygon(
-              [
-                  (528, 940),
-                  (565, 940),
-                  (565, 1420),
-                  (547, 1395),
-                  (528, 1420)
-              ],
-              fill=GOLD
-          )
-
-          img = vignette(img)
-
-          img.save("work/images/scene2.png")
-
-          # ==========================================
-          # SCENE 3
-          # ==========================================
-
-          img = gradient(
-              (2, 7, 17),
-              (12, 28, 36)
-          )
-
-          stars(img, 300)
-
-          img = glow(
-              img,
-              790,
-              410,
               300,
-              (220, 200, 145),
+              (225, 181, 90),
               40
           )
 
-          draw = ImageDraw.Draw(img)
-
-          draw.ellipse(
-              (700, 330, 870, 500),
-              fill=(220, 210, 180)
+          scene = add_glow(
+              scene,
+              720,
+              1810,
+              450,
+              (219, 164, 70),
+              25
           )
 
-          draw.ellipse(
-              (665, 305, 835, 475),
-              fill=(3, 9, 18)
+          scene = add_light_rays(
+              scene,
+              720,
+              1700
           )
 
-          draw.polygon(
-              [
-                  (0, 1480),
-                  (240, 1160),
-                  (470, 1480),
-                  (690, 1110),
-                  (1080, 1490),
-                  (1080, H),
-                  (0, H)
-              ],
-              fill=(3, 10, 15)
+          scene = mosque_silhouette(
+              scene,
+              1880
           )
 
-          for i in range(25):
+          scene = add_particles(scene, 90)
+          scene = add_cinematic_grain(scene)
+          scene = add_vignette(scene, 0.78)
 
-              y = 1530 + i * 16
+          save(scene, "scene1.png")
 
-              x = random.randint(80, 700)
-              width = random.randint(130, 500)
 
-              draw.line(
-                  (x, y, x + width, y),
-                  fill=(75, 67, 45),
-                  width=random.randint(1, 3)
+          # ========================================================
+          # SCENE 2 — HADITH BOOK
+          # ========================================================
+
+          scene = gradient(
+              (18, 13, 10),
+              (52, 34, 19)
+          )
+
+          # Wooden surface
+          wood = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          wd = ImageDraw.Draw(wood)
+
+          for y in range(1450, H):
+              shade = int(45 + ((y - 1450) / (H - 1450)) * 25)
+
+              wd.line(
+                  (0, y, W, y),
+                  fill=(shade, int(shade * 0.68), int(shade * 0.40), 255),
+                  width=2
               )
 
-          img = vignette(img)
+          scene = Image.alpha_composite(scene.convert("RGBA"), wood)
 
-          img.save("work/images/scene3.png")          # ==========================================
-          # SCENE 4
-          # ==========================================
-
-          img = gradient(
-              (3, 8, 14),
-              (23, 18, 12)
+          # Lamp glow
+          scene = add_glow(
+              scene,
+              1090,
+              670,
+              500,
+              (255, 188, 82),
+              65
           )
 
-          img = glow(
-              img,
-              540,
-              480,
-              650,
-              GOLD,
-              40
+          # Book shadow
+          shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          sd = ImageDraw.Draw(shadow)
+
+          sd.rounded_rectangle(
+              (280, 1050, 1160, 2040),
+              radius=55,
+              fill=(0, 0, 0, 150)
           )
 
-          draw = ImageDraw.Draw(img)
+          shadow = shadow.filter(ImageFilter.GaussianBlur(35))
+          scene = Image.alpha_composite(scene, shadow)
 
-          draw.polygon(
+          # Book
+          book = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          bd = ImageDraw.Draw(book)
+
+          bd.rounded_rectangle(
+              (300, 980, 1140, 1990),
+              radius=42,
+              fill=(64, 38, 19, 255),
+              outline=(190, 142, 66, 255),
+              width=8
+          )
+
+          # Pages
+          bd.polygon(
               [
-                  (130, 1500),
-                  (130, 850),
-                  (270, 620),
-                  (540, 490),
-                  (810, 620),
-                  (950, 850),
-                  (950, 1500)
+                  (720, 1040),
+                  (1080, 1100),
+                  (1080, 1910),
+                  (720, 1970)
               ],
-              fill=(8, 13, 16)
+              fill=(226, 213, 177, 255)
           )
 
-          draw.polygon(
+          bd.polygon(
               [
-                  (260, 1500),
-                  (260, 900),
-                  (360, 730),
-                  (540, 630),
-                  (720, 730),
-                  (820, 900),
-                  (820, 1500)
+                  (720, 1040),
+                  (360, 1100),
+                  (360, 1910),
+                  (720, 1970)
               ],
-              fill=(3, 7, 10)
+              fill=(239, 227, 194, 255)
           )
 
-          for x in [380, 465, 550, 635]:
+          # Page lines
+          for i in range(13):
+              yy = 1160 + i * 55
 
-              draw.rectangle(
-                  (x, 760, x + 35, 1050),
-                  fill=(100, 80, 48)
-              )
-
-          draw.polygon(
-              [
-                  (130, 1500),
-                  (950, 1500),
-                  (1080, H),
-                  (0, H)
-              ],
-              fill=(6, 8, 9)
-          )
-
-          for i in range(9):
-
-              y = 1540 + i * 45
-
-              draw.line(
-                  (230, y, 850, y),
-                  fill=(48, 41, 29),
+              bd.line(
+                  (420, yy, 680, yy + 8),
+                  fill=(126, 108, 77, 110),
                   width=3
               )
 
-          rays = Image.new(
-              "RGBA",
-              (W, H),
-              (0, 0, 0, 0)
+              bd.line(
+                  (760, yy + 8, 1020, yy),
+                  fill=(126, 108, 77, 110),
+                  width=3
+              )
+
+          # Decorative center
+          bd.ellipse(
+              (680, 1430, 760, 1510),
+              outline=(157, 117, 51, 220),
+              width=4
           )
 
-          rd = ImageDraw.Draw(rays)
+          scene = Image.alpha_composite(scene, book)
 
-          rd.polygon(
-              [
-                  (475, 540),
-                  (605, 540),
-                  (950, 1450),
-                  (130, 1450)
-              ],
-              fill=(235, 205, 140, 28)
+          scene = add_particles(scene, 120)
+          scene = add_cinematic_grain(scene)
+          scene = add_vignette(scene, 0.66)
+
+          save(scene, "scene2.png")
+
+
+          # ========================================================
+          # SCENE 3 — MOONLIT LANDSCAPE
+          # ========================================================
+
+          scene = gradient(
+              (3, 7, 18),
+              (11, 21, 30)
           )
 
-          rays = rays.filter(
-              ImageFilter.GaussianBlur(35)
+          scene = add_stars(scene, 330)
+
+          # Moon
+          moon = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          md = ImageDraw.Draw(moon)
+
+          md.ellipse(
+              (1000, 330, 1260, 590),
+              fill=(245, 236, 203, 245)
           )
 
-          img = Image.alpha_composite(
-              img.convert("RGBA"),
-              rays
-          ).convert("RGB")
-
-          img = vignette(img)
-
-          img.save("work/images/scene4.png")
-
-          # ==========================================
-          # SCENE 5
-          # ==========================================
-
-          img = gradient(
-              (4, 12, 23),
-              (58, 40, 22)
+          # Moon shadow to make crescent
+          md.ellipse(
+              (1080, 285, 1320, 545),
+              fill=(4, 8, 19, 255)
           )
 
-          img = glow(
-              img,
-              540,
-              1050,
-              560,
-              GOLD,
+          moon = moon.filter(ImageFilter.GaussianBlur(0.5))
+          scene = Image.alpha_composite(scene, moon)
+
+          # Horizon glow
+          scene = add_glow(
+              scene,
+              720,
+              1770,
+              600,
+              (65, 113, 125),
               45
           )
 
-          draw = ImageDraw.Draw(img)
+          # Mountains
+          mountains = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          m = ImageDraw.Draw(mountains)
 
-          for y in range(1050, 1500):
-
-              t = (y - 1050) / 450
-
-              r = int(35 + 75 * t)
-              g = int(27 + 58 * t)
-              b = int(19 + 35 * t)
-
-              draw.line(
-                  (0, y, W, y),
-                  fill=(r, g, b)
-              )
-
-          draw.ellipse(
-              (430, 960, 650, 1180),
-              fill=(225, 190, 110)
-          )
-
-          draw.polygon(
+          m.polygon(
               [
-                  (0, 1480),
-                  (250, 1340),
-                  (500, 1450),
-                  (720, 1320),
-                  (1080, 1450),
-                  (1080, H),
+                  (0, 1980),
+                  (180, 1780),
+                  (360, 1920),
+                  (610, 1580),
+                  (820, 1870),
+                  (1080, 1650),
+                  (1440, 1930),
+                  (1440, H),
                   (0, H)
               ],
-              fill=(3, 7, 9)
+              fill=(7, 16, 21, 255)
           )
 
-          img = vignette(img)
+          m.polygon(
+              [
+                  (0, 2100),
+                  (300, 1940),
+                  (500, 2050),
+                  (780, 1800),
+                  (1010, 2020),
+                  (1250, 1850),
+                  (1440, 2070),
+                  (1440, H),
+                  (0, H)
+              ],
+              fill=(4, 10, 14, 255)
+          )
 
-          img.save("work/images/scene5.png")
+          scene = Image.alpha_composite(scene, mountains)
 
-          print("CINEMATIC ARTWORK CREATED")
+          # Reflection / foreground
+          foreground = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          fd = ImageDraw.Draw(foreground)
+
+          for i in range(18):
+              yy = 2150 + i * 25
+
+              fd.line(
+                  (250, yy, 1190, yy),
+                  fill=(65, 91, 90, max(5, 35 - i)),
+                  width=3
+              )
+
+          scene = Image.alpha_composite(scene, foreground)
+
+          scene = add_particles(scene, 120)
+          scene = add_cinematic_grain(scene)
+          scene = add_vignette(scene, 0.72)
+
+          save(scene, "scene3.png")
+
+
+          # ========================================================
+          # SCENE 4 — MOSQUE INTERIOR
+          # ========================================================
+
+          scene = gradient(
+              (10, 8, 8),
+              (41, 27, 17)
+          )
+
+          scene = add_glow(
+              scene,
+              720,
+              780,
+              550,
+              (245, 184, 86),
+              52
+          )
+
+          scene = add_light_rays(
+              scene,
+              720,
+              800
+          )
+
+          interior = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          d = ImageDraw.Draw(interior)
+
+          # Floor
+          d.polygon(
+              [
+                  (0, 1600),
+                  (W, 1600),
+                  (W, H),
+                  (0, H)
+              ],
+              fill=(31, 21, 17, 255)
+          )
+
+          # Perspective floor lines
+          for i in range(10):
+              yy = 1650 + i * 95
+
+              d.line(
+                  (720, 1530, 80, yy),
+                  fill=(117, 76, 39, 70),
+                  width=3
+              )
+
+              d.line(
+                  (720, 1530, W - 80, yy),
+                  fill=(117, 76, 39, 70),
+                  width=3
+              )
+
+          # Side pillars
+          for x in [80, 1160]:
+              d.rectangle(
+                  (x, 400, x + 190, 1740),
+                  fill=(19, 15, 13, 255)
+              )
+
+              d.ellipse(
+                  (x - 40, 310, x + 230, 610),
+                  fill=(19, 15, 13, 255)
+              )
+
+          # Central arch
+          d.rounded_rectangle(
+              (360, 540, 1080, 1850),
+              radius=360,
+              fill=(14, 11, 10, 255)
+          )
+
+          d.rounded_rectangle(
+              (435, 650, 1005, 1850),
+              radius=280,
+              fill=(27, 19, 15, 255),
+              outline=(145, 100, 47, 180),
+              width=5
+          )
+
+          # Mihrab
+          d.polygon(
+              [
+                  (720, 820),
+                  (570, 1010),
+                  (570, 1760),
+                  (870, 1760),
+                  (870, 1010)
+              ],
+              fill=(9, 8, 8, 255)
+          )
+
+          # Warm central light
+          d.ellipse(
+              (660, 900, 780, 1020),
+              fill=(230, 177, 82, 170)
+          )
+
+          scene = Image.alpha_composite(scene, interior)
+
+          scene = add_particles(scene, 170)
+          scene = add_cinematic_grain(scene)
+          scene = add_vignette(scene, 0.78)
+
+          save(scene, "scene4.png")
+
+
+                  # ========================================================
+          # SCENE 5 — DAWN / BRAND ENDING
+          # ========================================================
+
+          scene = gradient(
+              (19, 17, 27),
+              (174, 101, 48)
+          )
+
+          # Sunrise glow
+          scene = add_glow(
+              scene,
+              720,
+              1590,
+              620,
+              (255, 195, 100),
+              95
+          )
+
+          # Horizon
+          horizon = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          hd = ImageDraw.Draw(horizon)
+
+          hd.rectangle(
+              (0, 1860, W, H),
+              fill=(20, 14, 13, 255)
+          )
+
+          # Dawn mosque
+          hd.rectangle(
+              (270, 1650, 1170, 1900),
+              fill=(14, 11, 12, 255)
+          )
+
+          hd.ellipse(
+              (500, 1390, 940, 1770),
+              fill=(14, 11, 12, 255)
+          )
+
+          # Minarets
+          for x in [350, 1010]:
+              hd.rectangle(
+                  (x, 1210, x + 65, 1880),
+                  fill=(14, 11, 12, 255)
+              )
+
+              hd.rectangle(
+                  (x - 25, 1180, x + 90, 1220),
+                  fill=(14, 11, 12, 255)
+              )
+
+              hd.polygon(
+                  [
+                      (x + 32, 1060),
+                      (x - 5, 1180),
+                      (x + 70, 1180)
+                  ],
+                  fill=(14, 11, 12, 255)
+              )
+
+          scene = Image.alpha_composite(scene, horizon)
+
+          # Atmospheric haze
+          haze = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+          hz = ImageDraw.Draw(haze)
+
+          for i in range(12):
+              yy = 1550 + i * 60
+
+              hz.ellipse(
+                  (-200, yy, W + 200, yy + 180),
+                  fill=(255, 210, 150, 5)
+              )
+
+          haze = haze.filter(ImageFilter.GaussianBlur(45))
+          scene = Image.alpha_composite(scene, haze)
+
+          scene = add_particles(scene, 150)
+          scene = add_cinematic_grain(scene)
+          scene = add_vignette(scene, 0.66)
+
+          save(scene, "scene5.png")
+
+
+          print("Cinematic scenes created successfully.")
+
+          for i in range(1, 6):
+              path = f"{OUT}/scene{i}.png"
+
+              if not os.path.exists(path):
+                  raise RuntimeError(f"Missing {path}")
+
+              print(path, os.path.getsize(path))
 
           PY
 
-          python3 work/create_visuals.py
 
-      # ==========================================
-      # DOWNLOAD MALE VOICE
-      # ==========================================
-      - name: Download male voice
+      - name: Generate cinematic scenes
+        run: |
+          python3 work/create_cinematic_scenes.py
+
+
+      # ============================================================
+      # 5. DOWNLOAD MALE PIPER VOICE
+      # ============================================================
+      - name: Download Piper voice
         run: |
           python3 -m piper.download_voices en_US-hfc_male-medium
 
-      # ==========================================
-      # CREATE VOICE SEGMENTS
-      # ==========================================
-      - name: Create voice segments
-        run: |
 
-          cat > work/part1.txt <<'EOF'
-          Your actions might look good...
-          but what really matters is WHY you did them.
+      # ============================================================
+      # 6. CREATE VOICE SCRIPTS
+      # ============================================================
+      - name: Create voice scripts
+        run: |
+          cat > work/voice/part1.txt <<'EOF'
+          Your actions might look good... but what really matters is WHY you did them.
           EOF
 
-          cat > work/part2.txt <<'EOF'
+          cat > work/voice/part2.txt <<'EOF'
           The Prophet Muhammad, peace and blessings be upon him, said:
           EOF
 
-          cat > work/part3.txt <<'EOF'
-          The reward of deeds depends upon the intentions,
-          and every person will get the reward according to what they have intended.
+          cat > work/voice/part3.txt <<'EOF'
+          The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.
           EOF
 
-          cat > work/part4.txt <<'EOF'
-          So before you do something, ask yourself...
-          Why am I doing this?
+          cat > work/voice/part4.txt <<'EOF'
+          So before you do something, ask yourself... Why am I doing this?
           EOF
 
-          cat > work/part5.txt <<'EOF'
+          cat > work/voice/part5.txt <<'EOF'
           A small action with a sincere intention can have a huge reward.
           EOF
 
-          cat > work/part6.txt <<'EOF'
+          cat > work/voice/part6.txt <<'EOF'
           What will you make your intention for today?
           EOF
 
-          cat > work/part7.txt <<'EOF'
-          Sahih al-Bukhari 1.
-          Narrated by Umar ibn al-Khattab.
+          cat > work/voice/part7.txt <<'EOF'
+          Sahih al-Bukhari 1. Narrated by Umar ibn al-Khattab.
           EOF
 
-          for i in 1 2 3 4 5 6 7
-          do
 
-            echo "Generating voice segment $i..."
-
-            cat work/part$i.txt | \
-            piper \
-              --model en_US-hfc_male-medium \
-              --output_file work/raw$i.wav
-
-            ffmpeg -y \
-              -i work/raw$i.wav \
-              -filter:a "atempo=0.92" \
-              -ar 22050 \
-              -ac 1 \
-              work/part$i.wav
-
-          done
-
-          echo "VOICE SEGMENTS CREATED"
-
-      # ==========================================
-      # BUILD FINAL VOICE
-      # ==========================================
-      - name: Build final voice
+      # ============================================================
+      # 7. GENERATE INDIVIDUAL VOICE SEGMENTS
+      # ============================================================
+      - name: Generate voice segments
         run: |
+          VOICE_MODEL="$HOME/.local/share/piper/en_US-hfc_male-medium.onnx"
 
-          echo "Creating silence files..."
+          if [ ! -f "$VOICE_MODEL" ]; then
+            echo "Searching for Piper model..."
+            find "$HOME" -name "en_US-hfc_male-medium.onnx" -print
+          fi
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part1.txt \
+            --output_file work/voice/part1.wav
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part2.txt \
+            --output_file work/voice/part2.wav
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part3.txt \
+            --output_file work/voice/part3.wav
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part4.txt \
+            --output_file work/voice/part4.wav
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part5.txt \
+            --output_file work/voice/part5.wav
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part6.txt \
+            --output_file work/voice/part6.wav
+
+          python3 -m piper \
+            --model "$VOICE_MODEL" \
+            --input_file work/voice/part7.txt \
+            --output_file work/voice/part7.wav
+
+
+      # ============================================================
+      # 8. ADD NATURAL PAUSES
+      # ============================================================
+      - name: Create cinematic pauses
+        run: |
+          ffmpeg -y \
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono:d=0.35" \
+            -t 0.35 \
+            work/voice/pause_short.wav
 
           ffmpeg -y \
             -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.8 \
-            -c:a pcm_s16le \
-            work/silence1.wav
+            -i "anullsrc=r=22050:cl=mono:d=0.65" \
+            -t 0.65 \
+            work/voice/pause_long.wav
 
-          ffmpeg -y \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.7 \
-            -c:a pcm_s16le \
-            work/silence2.wav
 
-          ffmpeg -y \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.9 \
-            -c:a pcm_s16le \
-            work/silence3.wav
-
-          ffmpeg -y \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.8 \
-            -c:a pcm_s16le \
-            work/silence4.wav
-
-          ffmpeg -y \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.8 \
-            -c:a pcm_s16le \
-            work/silence5.wav
-
-          ffmpeg -y \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.7 \
-            -c:a pcm_s16le \
-            work/silence6.wav
-
-          cat > work/audio_list.txt <<'EOF'
+      # ============================================================
+      # 9. CONCATENATE VOICE
+      # ============================================================
+      - name: Build natural voice track
+        run: |
+          cat > work/voice/concat.txt <<'EOF'
           file 'part1.wav'
-          file 'silence1.wav'
+          file 'pause_short.wav'
           file 'part2.wav'
-          file 'silence2.wav'
+          file 'pause_short.wav'
           file 'part3.wav'
-          file 'silence3.wav'
+          file 'pause_long.wav'
           file 'part4.wav'
-          file 'silence4.wav'
+          file 'pause_short.wav'
           file 'part5.wav'
-          file 'silence5.wav'
+          file 'pause_short.wav'
           file 'part6.wav'
-          file 'silence6.wav'
+          file 'pause_long.wav'
           file 'part7.wav'
           EOF
 
-          echo "Joining voice..."
-
-          cd work
+          cd work/voice
 
           ffmpeg -y \
             -f concat \
             -safe 0 \
-            -i audio_list.txt \
+            -i concat.txt \
             -c copy \
-            voice_joined.wav
+            ../audio/voice_raw.wav
 
-          cd ..
-
-          echo "Normalizing final voice..."
-
-          ffmpeg -y \
-            -i work/voice_joined.wav \
-            -af "loudnorm=I=-16:TP=-1.5:LRA=11,apad,atrim=duration=40" \
-            -ar 22050 \
-            -ac 1 \
-            -c:a pcm_s16le \
-            work/voice.wav
-
-          echo "FINAL VOICE CREATED"
+          cd ../..
 
           ffprobe \
             -v error \
             -show_entries format=duration \
-            -of default=noprint_wrappers=1 \
-            work/voice.wav
+            -of default=noprint_wrappers=1:nokey=1 \
+            work/audio/voice_raw.wav
 
-      # ==========================================
-      # ANIMATE SCENE 1
-      # ==========================================
-      - name: Animate scene 1
+
+      # ============================================================
+      # 10. PREPARE FINAL AUDIO
+      # ============================================================
+      - name: Normalize voice timing
         run: |
+          python3 - <<'PY'
+          import subprocess
+
+          raw = "work/audio/voice_raw.wav"
+
+          result = subprocess.check_output([
+              "ffprobe",
+              "-v", "error",
+              "-show_entries", "format=duration",
+              "-of", "default=noprint_wrappers=1:nokey=1",
+              raw
+          ])
+
+          duration = float(result.decode().strip())
+
+          print(f"Raw voice duration: {duration:.3f} seconds")
+
+          target = 39.2
+
+          if duration > target:
+              ratio = duration / target
+
+              filters = []
+
+              while ratio > 2.0:
+                  filters.append("atempo=2.0")
+                  ratio /= 2.0
+
+              filters.append(f"atempo={ratio:.6f}")
+
+              filter_string = ",".join(filters)
+
+              command = [
+                  "ffmpeg",
+                  "-y",
+                  "-i",
+                  raw,
+                  "-af",
+                  filter_string,
+                  "-ar",
+                  "22050",
+                  "-ac",
+                  "1",
+                  "work/audio/voice_final.wav"
+              ]
+
+          else:
+              pad = target - duration
+
+              command = [
+                  "ffmpeg",
+                  "-y",
+                  "-i",
+                  raw,
+                  "-af",
+                  f"apad=pad_dur={pad:.3f}",
+                  "-t",
+                  f"{target:.3f}",
+                  "-ar",
+                  "22050",
+                  "-ac",
+                  "1",
+                  "work/audio/voice_final.wav"
+              ]
+
+          print("Running:", " ".join(command))
+
+          subprocess.run(command, check=True)
+
+          PY
+
+
+      # ============================================================
+      # 11. VERIFY AUDIO
+      # ============================================================
+      - name: Check final voice
+        run: |
+          ffprobe \
+            -v error \
+            -show_entries \
+            format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            work/audio/voice_final.wav
+
+
+      # ============================================================
+      # 12. CREATE SCENE VIDEOS
+      # ============================================================
+      - name: Animate cinematic scenes
+        run: |
+          ffmpeg -y \
+            -loop 1 \
+            -i work/scenes/scene1.png \
+            -vf "zoompan=z='min(zoom+0.00055,1.10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=255:s=1080x1920:fps=30,format=yuv420p" \
+            -t 8.5 \
+            work/video/scene1.mp4
 
           ffmpeg -y \
             -loop 1 \
-            -framerate 30 \
-            -i work/images/scene1.png \
-            -t 8 \
-            -vf "zoompan=z='min(zoom+0.0007,1.08)':d=240:s=1080x1920:fps=30,format=yuv420p" \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 20 \
-            -pix_fmt yuv420p \
-            work/scenes/scene1.mp4
-
-      # ==========================================
-      # ANIMATE SCENE 2
-      # ==========================================
-      - name: Animate scene 2
-        run: |
+            -i work/scenes/scene2.png \
+            -vf "zoompan=z='min(zoom+0.00045,1.09)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)+10*sin(on/35)':d=255:s=1080x1920:fps=30,format=yuv420p" \
+            -t 8.5 \
+            work/video/scene2.mp4
 
           ffmpeg -y \
             -loop 1 \
-            -framerate 30 \
-            -i work/images/scene2.png \
-            -t 8 \
-            -vf "zoompan=z='min(zoom+0.0005,1.07)':d=240:s=1080x1920:fps=30,format=yuv420p" \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 20 \
-            -pix_fmt yuv420p \
-            work/scenes/scene2.mp4
-
-      # ==========================================
-      # ANIMATE SCENE 3
-      # ==========================================
-      - name: Animate scene 3
-        run: |
+            -i work/scenes/scene3.png \
+            -vf "zoompan=z='min(zoom+0.0005,1.10)':x='iw/2-(iw/zoom/2)+18*sin(on/45)':y='ih/2-(ih/zoom/2)':d=255:s=1080x1920:fps=30,format=yuv420p" \
+            -t 8.5 \
+            work/video/scene3.mp4
 
           ffmpeg -y \
             -loop 1 \
-            -framerate 30 \
-            -i work/images/scene3.png \
-            -t 8 \
-            -vf "zoompan=z='min(zoom+0.0006,1.075)':d=240:s=1080x1920:fps=30,format=yuv420p" \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 20 \
-            -pix_fmt yuv420p \
-            work/scenes/scene3.mp4
-
-      # ==========================================
-      # ANIMATE SCENE 4
-      # ==========================================
-      - name: Animate scene 4
-        run: |
+            -i work/scenes/scene4.png \
+            -vf "zoompan=z='min(zoom+0.0005,1.10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)-12*sin(on/40)':d=255:s=1080x1920:fps=30,format=yuv420p" \
+            -t 8.5 \
+            work/video/scene4.mp4
 
           ffmpeg -y \
             -loop 1 \
-            -framerate 30 \
-            -i work/images/scene4.png \
-            -t 8 \
-            -vf "zoompan=z='min(zoom+0.0005,1.07)':d=240:s=1080x1920:fps=30,format=yuv420p" \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 20 \
-            -pix_fmt yuv420p \
-            work/scenes/scene4.mp4
-
-      # ==========================================
-      # ANIMATE SCENE 5
-      # ==========================================
-      - name: Animate scene 5
-        run: |
-
-          ffmpeg -y \
-            -loop 1 \
-            -framerate 30 \
-            -i work/images/scene5.png \
-            -t 8 \
-            -vf "zoompan=z='min(zoom+0.0004,1.06)':d=240:s=1080x1920:fps=30,format=yuv420p" \
-            -c:v libx264 \
-            -preset veryfast \
-            -crf 20 \
-            -pix_fmt yuv420p \
-            work/scenes/scene5.mp4
-
-      # ==========================================
-      # JOIN CINEMATIC SCENES
-      # ==========================================
+            -i work/scenes/scene5.png \
+            -vf "zoompan=z='min(zoom+0.0006,1.11)':x='iw/2-(iw/zoom/2)+15*sin(on/50)':y='ih/2-(ih/zoom/2)':d=255:s=1080x1920:fps=30,format=yuv420p" \
+            -t 8.5 \
+            work/video/scene5.mp4 
+                  # ============================================================
+      # 13. JOIN SCENES WITH CINEMATIC CROSSFADE
+      # ============================================================
       - name: Join cinematic scenes
         run: |
-
-          cat > work/scenes.txt <<'EOF'
-          file 'scenes/scene1.mp4'
-          file 'scenes/scene2.mp4'
-          file 'scenes/scene3.mp4'
-          file 'scenes/scene4.mp4'
-          file 'scenes/scene5.mp4'
-          EOF
-
           ffmpeg -y \
-            -f concat \
-            -safe 0 \
-            -i work/scenes.txt \
-            -c copy \
-            work/background.mp4
+            -i work/video/scene1.mp4 \
+            -i work/video/scene2.mp4 \
+            -i work/video/scene3.mp4 \
+            -i work/video/scene4.mp4 \
+            -i work/video/scene5.mp4 \
+            -filter_complex "
+              [0:v][1:v]xfade=transition=fade:duration=0.625:offset=7.875[v01];
+              [v01][2:v]xfade=transition=fade:duration=0.625:offset=15.750[v02];
+              [v02][3:v]xfade=transition=fade:duration=0.625:offset=23.625[v03];
+              [v03][4:v]xfade=transition=fade:duration=0.625:offset=31.500[vout]
+            " \
+            -map "[vout]" \
+            -t 40 \
+            -r 30 \
+            -pix_fmt yuv420p \
+            work/video/cinematic_base.mp4
 
-          echo "BACKGROUND CREATED"
 
-          ffprobe \
-            -v error \
-            -show_entries format=duration \
-            -of default=noprint_wrappers=1 \
-            work/background.mp4
-
-      # ==========================================
-      # CREATE SUBTITLES
-      # ==========================================
-      - name: Create subtitles
+      # ============================================================
+      # 14. CREATE DYNAMIC SUBTITLE TIMINGS
+      # ============================================================
+      - name: Create subtitle timing file
         run: |
+          python3 - <<'PY'
+          import subprocess
+          import json
+          import os
 
-          cat > work/subtitles.ass <<'EOF'
+          voice_dir = "work/voice"
 
-          [Script Info]
+          files = [
+              "part1.wav",
+              "pause_short.wav",
+              "part2.wav",
+              "pause_short.wav",
+              "part3.wav",
+              "pause_long.wav",
+              "part4.wav",
+              "pause_short.wav",
+              "part5.wav",
+              "pause_short.wav",
+              "part6.wav",
+              "pause_long.wav",
+              "part7.wav"
+          ]
+
+          durations = []
+
+          for name in files:
+              path = os.path.join(voice_dir, name)
+
+              result = subprocess.check_output([
+                  "ffprobe",
+                  "-v",
+                  "error",
+                  "-show_entries",
+                  "format=duration",
+                  "-of",
+                  "default=noprint_wrappers=1:nokey=1",
+                  path
+              ])
+
+              durations.append(float(result.decode().strip()))
+
+          raw_total = sum(durations)
+
+          final_audio = "work/audio/voice_final.wav"
+
+          result = subprocess.check_output([
+              "ffprobe",
+              "-v",
+              "error",
+              "-show_entries",
+              "format=duration",
+              "-of",
+              "default=noprint_wrappers=1:nokey=1",
+              final_audio
+          ])
+
+          final_total = float(result.decode().strip())
+
+          scale = final_total / raw_total
+
+          print("Raw total:", raw_total)
+          print("Final total:", final_total)
+          print("Timing scale:", scale)
+
+          # Speech lines correspond to these segment indexes.
+          speech = {
+              0: "Your actions might look good… but what really matters is WHY you did them.",
+              2: "The Prophet Muhammad, peace and blessings be upon him, said:",
+              4: "The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.",
+              6: "So before you do something, ask yourself… Why am I doing this?",
+              8: "A small action with a sincere intention can have a huge reward.",
+              10: "What will you make your intention for today?",
+              12: "Sahih al-Bukhari 1. Narrated by Umar ibn al-Khattab."
+          }
+
+          current = 0.0
+          entries = []
+
+          for index, duration in enumerate(durations):
+              start = current * scale
+              end = (current + duration) * scale
+
+              if index in speech:
+                  entries.append({
+                      "start": start,
+                      "end": end,
+                      "text": speech[index]
+                  })
+
+              current += duration
+
+          with open("work/subtitles/timings.json", "w", encoding="utf-8") as f:
+              json.dump(entries, f, ensure_ascii=False, indent=2)
+
+          print(json.dumps(entries, ensure_ascii=False, indent=2))
+
+          PY
+
+
+      # ============================================================
+      # 15. CREATE PREMIUM ASS SUBTITLES
+      # ============================================================
+      - name: Create premium subtitles
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+
+          with open(
+              "work/subtitles/timings.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              entries = json.load(f)
+
+
+          def ass_time(seconds):
+              if seconds < 0:
+                  seconds = 0
+
+              h = int(seconds // 3600)
+              m = int((seconds % 3600) // 60)
+              s = int(seconds % 60)
+              cs = int(round((seconds - int(seconds)) * 100))
+
+              if cs >= 100:
+                  cs = 0
+                  s += 1
+
+              if s >= 60:
+                  s = 0
+                  m += 1
+
+              if m >= 60:
+                  m = 0
+                  h += 1
+
+              return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+          header = """[Script Info]
           ScriptType: v4.00+
           PlayResX: 1080
           PlayResY: 1920
+          WrapStyle: 2
+          ScaledBorderAndShadow: yes
 
           [V4+ Styles]
-          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Alignment, MarginL, MarginR, MarginV, Encoding
-          Style: Main,DejaVu Sans,60,&H00FFFFFF,&H00FFFFFF,&H00120E08,&HAA000000,1,0,5,130,130,430,1
+          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+          Style: Main,DejaVu Sans,62,&H00FFFFFF,&H00FFFFFF,&H00110C07,&H00000000,1,0,0,0,100,100,1,0,1,3,1,2,70,70,250,1
 
           [Events]
           Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+          """
 
-          Dialogue: 0,0:00:00.00,0:00:04.00,Main,,0,0,0,,YOUR ACTIONS MIGHT LOOK GOOD...
+          lines = [header]
 
-          Dialogue: 0,0:00:04.00,0:00:08.00,Main,,0,0,0,,BUT WHAT REALLY MATTERS IS WHY YOU DID THEM.
+          for item in entries:
+              start = ass_time(item["start"])
+              end = ass_time(item["end"])
+              text = item["text"]
 
-          Dialogue: 0,0:00:08.00,0:00:12.50,Main,,0,0,0,,The Prophet Muhammad, peace and blessings be upon him, said:
+              # Keep the hook visually stronger.
+              if "WHY" in text:
+                  text = text.replace(
+                      "WHY",
+                      r"{\c&H0055D9FF&}WHY{\c&H00FFFFFF&}"
+                  )
 
-          Dialogue: 0,0:00:12.50,0:00:18.50,Main,,0,0,0,,The reward of deeds depends upon the intentions,
+              # Highlight the key Hadith concept.
+              text = text.replace(
+                  "intentions",
+                  r"{\c&H0055D9FF&}intentions{\c&H00FFFFFF&}"
+              )
 
-          Dialogue: 0,0:00:18.50,0:00:24.80,Main,,0,0,0,,and every person will get the reward according to what they have intended.
+              lines.append(
+                  f"Dialogue: 0,{start},{end},Main,,0,0,0,,{text}"
+              )
 
-          Dialogue: 0,0:00:24.80,0:00:28.50,Main,,0,0,0,,So before you do something, ask yourself:
+          with open(
+              "work/subtitles/deen-in-sec.ass",
+              "w",
+              encoding="utf-8"
+          ) as f:
+              f.write("\n".join(lines))
 
-          Dialogue: 0,0:00:28.50,0:00:32.00,Main,,0,0,0,,WHY AM I DOING THIS?
+          print("ASS subtitles created.")
 
-          Dialogue: 0,0:00:32.00,0:00:36.00,Main,,0,0,0,,A small action with a sincere intention can have a huge reward.
+          PY
 
-          Dialogue: 0,0:00:36.00,0:00:39.00,Main,,0,0,0,,WHAT WILL YOU MAKE YOUR INTENTION FOR TODAY?
 
-          Dialogue: 0,0:00:39.00,0:00:40.00,Main,,0,0,0,,SAHIH AL-BUKHARI 1 • UMAR IBN AL-KHATTAB
+      # ============================================================
+      # 16. CREATE SUBTLE BRANDING OVERLAY
+      # ============================================================
+      - name: Create branding overlay
+        run: |
+          ffmpeg -y \
+            -f lavfi \
+            -i "color=c=black@0.0:s=1080x1920:r=30" \
+            -vf "
+              format=rgba,
+              drawtext=
+                fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:
+                text='DEEN IN SEC':
+                fontsize=30:
+                fontcolor=white@0.72:
+                x=(w-text_w)/2:
+                y=92:
+                shadowcolor=black@0.8:
+                shadowx=2:
+                shadowy=2
+            " \
+            -t 40 \
+            -c:v qtrle \
+            work/video/branding.mov
 
-          EOF
 
-      # ==========================================
-      # RENDER FINAL REEL
-      # ==========================================
+      # ============================================================
+      # 17. FINAL CINEMATIC RENDER
+      # ============================================================
       - name: Render final Reel
         run: |
-
-          echo "Rendering final Reel..."
-
           ffmpeg -y \
-            -i work/background.mp4 \
-            -i work/voice.wav \
-            -vf "fade=t=in:st=0:d=1,fade=t=out:st=38:d=2,subtitles=work/subtitles.ass" \
-            -map 0:v:0 \
-            -map 1:a:0 \
+            -i work/video/cinematic_base.mp4 \
+            -i work/audio/voice_final.wav \
+            -i work/video/branding.mov \
+            -filter_complex "
+              [0:v]eq=contrast=1.06:saturation=0.92:brightness=-0.015,
+              vignette=PI/5:
+              [base];
+
+              [base][2:v]overlay=0:0:format=auto,
+              subtitles=work/subtitles/deen-in-sec.ass:
+              force_style='FontName=DejaVu Sans,FontSize=62,PrimaryColour=&H00FFFFFF,OutlineColour=&H00110C07,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=250':
+              fade=t=in:st=0:d=0.8:
+              fade=t=out:st=39.2:d=0.8
+              [vfinal]
+            " \
+            -map "[vfinal]" \
+            -map 1:a \
             -t 40 \
+            -r 30 \
             -c:v libx264 \
             -preset medium \
             -crf 19 \
@@ -928,38 +1328,39 @@ jobs:
             -b:a 192k \
             -ar 44100 \
             -movflags +faststart \
-            output/deen-in-sec-hadith-001.mp4
+            output/deen-in-sec-hadith-001-v5.mp4
 
-          echo "FINAL REEL RENDERED"
 
-          ls -lh output/deen-in-sec-hadith-001.mp4
-
-      # ==========================================
-      # CHECK FINAL REEL
-      # ==========================================
-      - name: Check final Reel
+      # ============================================================
+      # 18. VERIFY FINAL VIDEO
+      # ============================================================
+      - name: Verify final Reel
         run: |
-
-          echo "======================================"
-          echo "DEEN IN SEC V4 REEL CREATED"
-          echo "======================================"
-
-          ls -lh output/deen-in-sec-hadith-001.mp4
+          echo "===== VIDEO INFO ====="
 
           ffprobe \
             -v error \
-            -show_entries format=duration,size \
-            -show_entries stream=width,height,codec_name \
+            -show_entries \
+            format=duration:stream=width,height,r_frame_rate,codec_name \
             -of default=noprint_wrappers=1 \
-            output/deen-in-sec-hadith-001.mp4
+            output/deen-in-sec-hadith-001-v5.mp4
 
-      # ==========================================
-      # UPLOAD REEL
-      # ==========================================
-      - name: Upload Reel
+          echo "===== FILE SIZE ====="
+
+          ls -lh output/deen-in-sec-hadith-001-v5.mp4
+
+          test -s output/deen-in-sec-hadith-001-v5.mp4
+
+          echo "FINAL REEL CREATED SUCCESSFULLY."
+
+
+      # ============================================================
+      # 19. UPLOAD ARTIFACT
+      # ============================================================
+      - name: Upload final Reel
         uses: actions/upload-artifact@v4
         with:
-          name: deen-in-sec-hadith-001-v4
-          path: output/deen-in-sec-hadith-001.mp4
+          name: deen-in-sec-hadith-001-v5
+          path: output/deen-in-sec-hadith-001-v5.mp4
           if-no-files-found: error
           retention-days: 7
