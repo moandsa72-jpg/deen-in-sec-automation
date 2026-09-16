@@ -44,8 +44,9 @@ jobs:
       - name: Create voice script
         run: |
           cat > work/script.txt <<'EOF'
-          You can do a good deed...
-          and still lose its reward.
+          Your actions might look good...
+             but what really matters is WHY you did them.
+          
 
           The Prophet Muhammad, peace and blessings be upon him, said:
 
@@ -58,21 +59,36 @@ jobs:
 
           A small action with a sincere intention can have a huge reward.
 
-          Before your next good deed...
-          check your intention.
-          EOF
+          What will you make your intention for today?
+
+          Sahih al-Bukhari 1.
+          Narrated by Umar ibn al-Khattab, may Allah be pleased with him.
+
+          
+          
+          
+          
 
       # ==========================================
       # GENERATE DEEP MALE AI VOICE
       # ==========================================
       - name: Generate male voice
         run: |
-          python -m piper.download_voices en_US-ryan-high
+          python -m piper.download_voices en_US-hfc_male-medium
 
           cat work/script.txt | \
           piper \
             --model en_US-ryan-high \
             --output_file work/voice.wav
+
+            ffmpeg -y \
+            -i work/voice.wav \
+            -filter:a "atempo=0.94" \
+            work/voice-slow.wav
+            mv work/voice-slow.wav work/voice.wav
+          
+            
+            
 
           echo "VOICE CREATED"
           ls -lh work/voice.wav
@@ -85,7 +101,7 @@ jobs:
           ffmpeg -y \
             -f lavfi \
             -i "color=c=#050b12:s=1080x1920:r=30" \
-            -t 6 \
+            -t 7 \
             -vf "
               drawbox=x=0:y=0:w=1080:h=1920:color=#050b12@1:t=fill,
               drawbox=x=70:y=70:w=940:h=1780:color=#c9aa63@0.15:t=4,
@@ -110,7 +126,7 @@ jobs:
           ffmpeg -y \
             -f lavfi \
             -i "color=c=#07151b:s=1080x1920:r=30" \
-            -t 7 \
+            -t 8 \
             -vf "
               drawbox=x=0:y=0:w=1080:h=1920:color=#07151b@1:t=fill,
               drawbox=x=120:y=400:w=840:h=1100:color=#c9aa63@0.07:t=fill,
@@ -138,7 +154,7 @@ jobs:
           ffmpeg -y \
             -f lavfi \
             -i "color=c=#03080d:s=1080x1920:r=30" \
-            -t 7 \
+            -t 8 \
             -vf "
               drawbox=x=0:y=0:w=1080:h=1920:color=#03080d@1:t=fill,
               drawbox=x=100:y=100:w=880:h=1720:color=#c9aa63@0.10:t=3,
@@ -166,7 +182,7 @@ jobs:
           ffmpeg -y \
             -f lavfi \
             -i "color=c=#061018:s=1080x1920:r=30" \
-            -t 7 \
+            -t 8 \
             -vf "
               drawbox=x=0:y=0:w=1080:h=1920:color=#061018@1:t=fill,
               drawbox=x=80:y=80:w=920:h=1760:color=#c9aa63@0.12:t=4,
@@ -191,7 +207,7 @@ jobs:
           ffmpeg -y \
             -f lavfi \
             -i "color=c=#02060a:s=1080x1920:r=30" \
-            -t 8 \
+            -t 9 \
             -vf "
               drawbox=x=0:y=0:w=1080:h=1920:color=#02060a@1:t=fill,
               drawbox=x=80:y=80:w=920:h=1760:color=#c9aa63@0.16:t=4,
@@ -252,14 +268,15 @@ jobs:
           [Events]
           Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
-          Dialogue: 0,0:00:00.00,0:00:03.80,Main,,0,0,0,,YOU CAN DO A GOOD DEED...
-          Dialogue: 0,0:00:03.80,0:00:07.00,Main,,0,0,0,,AND STILL LOSE ITS REWARD.
+          Dialogue: 0,0:00:00.00,0:00:03.50,Main,,0,0,0,,YOUR ACTIONS MIGHT LOOK GOOD...
+          Dialogue: 0,0:00:03.50,0:00:07.00,Main,,0,0,0,,BUT WHAT REALLY MATTERS IS WHY YOU DID THEM.
+          
 
           Dialogue: 0,0:00:07.00,0:00:11.50,Main,,0,0,0,,The Prophet Muhammad ﷺ said:
 
           Dialogue: 0,0:00:11.50,0:00:17.00,Main,,0,0,0,,The reward of deeds depends upon the intentions,
 
-          Dialogue: 0,0:00:17.00,0:00:23.00,Main,,0,0,0,,and every person gets the reward according to what they intended.
+          Dialogue: 0,0:00:17.00,0:00:23.00,Main,,0,0,0,,and every person will get the reward according to what they have intended.
 
           Dialogue: 0,0:00:23.00,0:00:27.50,Main,,0,0,0,,So before you do something, ask yourself:
 
@@ -267,7 +284,8 @@ jobs:
 
           Dialogue: 0,0:00:31.00,0:00:36.00,Main,,0,0,0,,A small action with a sincere intention can have a huge reward.
 
-          Dialogue: 0,0:00:36.00,0:00:41.00,Main,,0,0,0,,Before your next good deed... check your intention. 🤍
+          Dialogue: 0,0:00:32.00,0:00:36.00,Main,,0,0,0,,WHAT WILL YOU MAKE YOUR INTENTION FOR TODAY? 🤍
+          Dialogue: 0,0:00:36.00,0:00:40.00,Main,,0,0,0,,SAHIH AL-BUKHARI 1 • UMAR IBN AL-KHATTAB
 
           EOF
 
@@ -282,7 +300,7 @@ jobs:
             -filter_complex "
               [0:v]
               fade=t=in:st=0:d=0.8,
-              fade=t=out:st=39:d=2,
+              fade=t=out:st=38:d=2,
               subtitles=work/subtitles.ass
               [video]
             " \
