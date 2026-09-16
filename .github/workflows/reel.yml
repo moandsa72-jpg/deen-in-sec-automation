@@ -93,8 +93,8 @@ jobs:
               drawbox=x=440:y=650:w=200:h=700:color=#000000@0.9:t=fill,
               drawbox=x=350:y=850:w=380:h=500:color=#000000@0.9:t=fill,
               drawbox=x=470:y=500:w=140:h=150:color=#000000@0.9:t=fill,
-              drawtext=text='A GOOD DEED':x=(w-text_w)/2:y=260:fontsize=72:fontcolor=#e7c77b:font=DejaVu Sans:bold=1,
-              drawtext=text='CAN STILL BE LOST':x=(w-text_w)/2:y=350:fontsize=54:fontcolor=white:font=DejaVu Sans:bold=1
+              drawtext=text='A GOOD DEED':x=(w-text_w)/2:y=260:fontsize=72:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='CAN STILL BE LOST':x=(w-text_w)/2:y=350:fontsize=54:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
@@ -120,9 +120,9 @@ jobs:
               drawbox=x=430:y=900:w=220:h=12:color=#c9aa63@0.35:t=fill,
               drawbox=x=430:y=1000:w=220:h=12:color=#c9aa63@0.35:t=fill,
               drawbox=x=430:y=1100:w=220:h=12:color=#c9aa63@0.35:t=fill,
-              drawtext=text='THE REWARD':x=(w-text_w)/2:y=250:fontsize=70:fontcolor=#e7c77b:font=DejaVu Sans:bold=1,
-              drawtext=text='DEPENDS ON':x=(w-text_w)/2:y=340:fontsize=58:fontcolor=white:font=DejaVu Sans:bold=1,
-              drawtext=text='THE INTENTION':x=(w-text_w)/2:y=420:fontsize=58:fontcolor=white:font=DejaVu Sans:bold=1
+              drawtext=text='THE REWARD':x=(w-text_w)/2:y=250:fontsize=70:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='DEPENDS ON':x=(w-text_w)/2:y=340:fontsize=58:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='THE INTENTION':x=(w-text_w)/2:y=420:fontsize=58:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
@@ -149,8 +149,8 @@ jobs:
               drawbox=x=330:y=960:w=420:h=14:color=#c9aa63@0.28:t=fill,
               drawbox=x=330:y=1070:w=420:h=14:color=#c9aa63@0.28:t=fill,
               drawbox=x=330:y=1180:w=420:h=14:color=#c9aa63@0.28:t=fill,
-              drawtext=text='WHY AM I':x=(w-text_w)/2:y=250:fontsize=72:fontcolor=#e7c77b:font=DejaVu Sans:bold=1,
-              drawtext=text='DOING THIS?':x=(w-text_w)/2:y=350:fontsize=72:fontcolor=white:font=DejaVu Sans:bold=1
+              drawtext=text='WHY AM I':x=(w-text_w)/2:y=250:fontsize=72:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='DOING THIS?':x=(w-text_w)/2:y=350:fontsize=72:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
@@ -173,9 +173,9 @@ jobs:
               drawbox=x=540:y=300:w=6:h=1300:color=#c9aa63@0.20:t=fill,
               drawbox=x=250:y=850:w=580:h=8:color=#c9aa63@0.30:t=fill,
               drawbox=x=350:y=700:w=380:h=300:color=#020507@0.75:t=fill,
-              drawtext=text='SINCERE':x=(w-text_w)/2:y=300:fontsize=82:fontcolor=#e7c77b:font=DejaVu Sans:bold=1,
-              drawtext=text='INTENTION':x=(w-text_w)/2:y=400:fontsize=82:fontcolor=white:font=DejaVu Sans:bold=1,
-              drawtext=text='CAN CHANGE EVERYTHING':x=(w-text_w)/2:y=1450:fontsize=42:fontcolor=white@0.70:font=DejaVu Sans:bold=1
+              drawtext=text='SINCERE':x=(w-text_w)/2:y=300:fontsize=82:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='INTENTION':x=(w-text_w)/2:y=400:fontsize=82:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='CAN CHANGE EVERYTHING':x=(w-text_w)/2:y=1450:fontsize=42:fontcolor=white@0.70:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
@@ -198,10 +198,10 @@ jobs:
               drawbox=x=170:y=170:w=740:h=1580:color=#c9aa63@0.05:t=3,
               drawbox=x=390:y=680:w=300:h=700:color=#020507@0.8:t=fill,
               drawbox=x=330:y=880:w=420:h=450:color=#020507@0.9:t=fill,
-              drawtext=text='BEFORE YOUR':x=(w-text_w)/2:y=250:fontsize=62:fontcolor=white:font=DejaVu Sans:bold=1,
-              drawtext=text='NEXT GOOD DEED':x=(w-text_w)/2:y=350:fontsize=68:fontcolor=#e7c77b:font=DejaVu Sans:bold=1,
-              drawtext=text='CHECK YOUR INTENTION':x=(w-text_w)/2:y=1480:fontsize=46:fontcolor=white:font=DejaVu Sans:bold=1,
-              drawtext=text='DEEN IN SEC':x=(w-text_w)/2:y=1580:fontsize=40:fontcolor=#e7c77b:font=DejaVu Sans:bold=1
+              drawtext=text='BEFORE YOUR':x=(w-text_w)/2:y=250:fontsize=62:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='NEXT GOOD DEED':x=(w-text_w)/2:y=350:fontsize=68:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='CHECK YOUR INTENTION':x=(w-text_w)/2:y=1480:fontsize=46:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='DEEN IN SEC':x=(w-text_w)/2:y=1580:fontsize=40:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
