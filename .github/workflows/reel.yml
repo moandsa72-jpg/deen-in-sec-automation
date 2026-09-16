@@ -15,7 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       # ==========================================
       # INSTALL TOOLS
       # ==========================================
@@ -26,14 +25,12 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow
 
-
       # ==========================================
       # INSTALL PIPER
       # ==========================================
       - name: Install Piper TTS
         run: |
           python3 -m pip install piper-tts
-
 
       # ==========================================
       # CREATE FOLDERS
@@ -46,9 +43,8 @@ jobs:
           mkdir -p work/scenes
           mkdir -p output
 
-
       # ==========================================
-      # CREATE CINEMATIC ARTWORK
+      # CREATE CINEMATIC VISUAL ARTWORK
       # ==========================================
       - name: Create cinematic visual artwork
         run: |
@@ -65,7 +61,6 @@ jobs:
           GOLD = (205, 170, 95)
 
           random.seed(42)
-
 
           def gradient(top, bottom):
 
@@ -87,7 +82,6 @@ jobs:
 
               return img
 
-
           def vignette(img):
 
               overlay = Image.new(
@@ -101,26 +95,26 @@ jobs:
               cx = W / 2
               cy = H / 2
 
-              for y in range(0, H, 8):
+              for y in range(0, H, 12):
 
-                  for x in range(0, W, 8):
+                  for x in range(0, W, 12):
 
                       dx = (x - cx) / (W / 2)
                       dy = (y - cy) / (H / 2)
 
                       distance = math.sqrt(dx * dx + dy * dy)
 
-                      if distance > 0.42:
+                      if distance > 0.45:
 
                           alpha = int(
                               min(
-                                  180,
-                                  (distance - 0.42) * 250
+                                  170,
+                                  (distance - 0.45) * 220
                               )
                           )
 
                           draw.rectangle(
-                              (x, y, x + 8, y + 8),
+                              (x, y, x + 12, y + 12),
                               fill=(0, 0, 0, alpha)
                           )
 
@@ -129,8 +123,7 @@ jobs:
                   overlay
               ).convert("RGB")
 
-
-          def glow(img, xy, radius, color, alpha):
+          def glow(img, x, y, radius, color, alpha):
 
               layer = Image.new(
                   "RGBA",
@@ -139,8 +132,6 @@ jobs:
               )
 
               draw = ImageDraw.Draw(layer)
-
-              x, y = xy
 
               draw.ellipse(
                   (
@@ -161,15 +152,14 @@ jobs:
                   layer
               ).convert("RGB")
 
-
-          def stars(img, amount=200):
+          def stars(img, amount):
 
               draw = ImageDraw.Draw(img)
 
               for _ in range(amount):
 
                   x = random.randint(20, W - 20)
-                  y = random.randint(20, 1200)
+                  y = random.randint(20, 1250)
 
                   radius = random.choice([1, 1, 1, 2])
 
@@ -183,76 +173,69 @@ jobs:
                       fill=(225, 215, 180)
                   )
 
-
-          def mosque(img):
+          def draw_mosque(img):
 
               draw = ImageDraw.Draw(img)
 
               base = 1530
 
-              # Main building
               draw.rectangle(
                   (150, 1050, 930, base),
-                  fill=(4, 8, 11)
+                  fill=(3, 7, 10)
               )
 
-              # Dome
               draw.ellipse(
                   (350, 680, 730, 1120),
-                  fill=(4, 8, 11)
+                  fill=(3, 7, 10)
               )
 
               draw.rectangle(
                   (350, 880, 730, 1120),
-                  fill=(4, 8, 11)
+                  fill=(3, 7, 10)
               )
 
-              # Dome top
               draw.polygon(
                   [
-                      (540, 610),
-                      (500, 700),
-                      (580, 700)
+                      (540, 600),
+                      (495, 700),
+                      (585, 700)
                   ],
-                  fill=(4, 8, 11)
+                  fill=(3, 7, 10)
               )
 
-              # Minarets
               for cx in [230, 850]:
 
                   draw.rectangle(
-                      (cx - 35, 650, cx + 35, 1530),
-                      fill=(3, 7, 10)
+                      (cx - 34, 650, cx + 34, 1530),
+                      fill=(2, 6, 9)
                   )
 
                   draw.ellipse(
-                      (cx - 55, 590, cx + 55, 700),
-                      fill=(3, 7, 10)
+                      (cx - 54, 590, cx + 54, 700),
+                      fill=(2, 6, 9)
                   )
 
                   draw.polygon(
                       [
-                          (cx, 490),
-                          (cx - 42, 610),
-                          (cx + 42, 610)
+                          (cx, 485),
+                          (cx - 40, 610),
+                          (cx + 40, 610)
                       ],
-                      fill=(3, 7, 10)
+                      fill=(2, 6, 9)
                   )
 
-              # Arches
               for x in [250, 380, 510, 640, 770]:
 
                   draw.rectangle(
                       (x, 1180, x + 70, 1530),
-                      fill=(2, 6, 9)
+                      fill=(1, 5, 8)
                   )
 
                   draw.ellipse(
                       (x, 1110, x + 70, 1240),
-                      fill=(2, 6, 9)
+                      fill=(1, 5, 8)
                   )
 
-              # Warm windows
               for x in [275, 405, 535, 665, 795]:
 
                   draw.rectangle(
@@ -260,34 +243,33 @@ jobs:
                       fill=(100, 78, 40)
                   )
 
-
           # ==========================================
           # SCENE 1
           # ==========================================
 
           img = gradient(
-              (2, 8, 16),
-              (12, 24, 30)
+              (2, 7, 15),
+              (12, 25, 31)
           )
 
           img = glow(
               img,
-              (540, 700),
+              540,
+              700,
               520,
               GOLD,
               38
           )
 
           stars(img, 220)
-          mosque(img)
+          draw_mosque(img)
 
           img = vignette(img)
 
           img.save("work/images/scene1.png")
 
-
           # ==========================================
-          # SCENE 2 - HADITH BOOK
+          # SCENE 2
           # ==========================================
 
           img = gradient(
@@ -297,7 +279,8 @@ jobs:
 
           img = glow(
               img,
-              (540, 750),
+              540,
+              750,
               500,
               GOLD,
               42
@@ -305,20 +288,17 @@ jobs:
 
           draw = ImageDraw.Draw(img)
 
-          # Table
           draw.rectangle(
               (0, 1370, W, H),
-              fill=(7, 6, 5)
+              fill=(6, 5, 4)
           )
 
-          # Book shadow
           draw.rounded_rectangle(
-              (145, 880, 935, 1460),
+              (140, 870, 940, 1470),
               radius=45,
               fill=(1, 2, 3)
           )
 
-          # Left page
           draw.polygon(
               [
                   (200, 850),
@@ -329,7 +309,6 @@ jobs:
               fill=(203, 188, 151)
           )
 
-          # Right page
           draw.polygon(
               [
                   (545, 950),
@@ -340,14 +319,12 @@ jobs:
               fill=(225, 210, 174)
           )
 
-          # Book center
           draw.line(
               (540, 945, 540, 1390),
               fill=(105, 82, 45),
               width=7
           )
 
-          # Writing
           for i in range(7):
 
               y = 1010 + i * 45
@@ -364,7 +341,6 @@ jobs:
                   width=3
               )
 
-          # Bookmark
           draw.polygon(
               [
                   (528, 940),
@@ -380,9 +356,8 @@ jobs:
 
           img.save("work/images/scene2.png")
 
-
           # ==========================================
-          # SCENE 3 - NIGHT LANDSCAPE
+          # SCENE 3
           # ==========================================
 
           img = gradient(
@@ -394,7 +369,8 @@ jobs:
 
           img = glow(
               img,
-              (790, 410),
+              790,
+              410,
               300,
               (220, 200, 145),
               40
@@ -402,7 +378,6 @@ jobs:
 
           draw = ImageDraw.Draw(img)
 
-          # Moon
           draw.ellipse(
               (700, 330, 870, 500),
               fill=(220, 210, 180)
@@ -413,7 +388,6 @@ jobs:
               fill=(3, 9, 18)
           )
 
-          # Mountains
           draw.polygon(
               [
                   (0, 1480),
@@ -427,7 +401,6 @@ jobs:
               fill=(3, 10, 15)
           )
 
-          # Water reflections
           for i in range(25):
 
               y = 1530 + i * 16
@@ -443,11 +416,8 @@ jobs:
 
           img = vignette(img)
 
-          img.save("work/images/scene3.png")
-
-
-          # ==========================================
-          # SCENE 4 - MOSQUE INTERIOR
+          img.save("work/images/scene3.png")          # ==========================================
+          # SCENE 4
           # ==========================================
 
           img = gradient(
@@ -457,7 +427,8 @@ jobs:
 
           img = glow(
               img,
-              (540, 480),
+              540,
+              480,
               650,
               GOLD,
               40
@@ -465,7 +436,6 @@ jobs:
 
           draw = ImageDraw.Draw(img)
 
-          # Outer arch
           draw.polygon(
               [
                   (130, 1500),
@@ -479,7 +449,6 @@ jobs:
               fill=(8, 13, 16)
           )
 
-          # Inner arch
           draw.polygon(
               [
                   (260, 1500),
@@ -493,7 +462,6 @@ jobs:
               fill=(3, 7, 10)
           )
 
-          # Windows
           for x in [380, 465, 550, 635]:
 
               draw.rectangle(
@@ -501,7 +469,6 @@ jobs:
                   fill=(100, 80, 48)
               )
 
-          # Floor
           draw.polygon(
               [
                   (130, 1500),
@@ -512,7 +479,6 @@ jobs:
               fill=(6, 8, 9)
           )
 
-          # Floor lines
           for i in range(9):
 
               y = 1540 + i * 45
@@ -523,7 +489,6 @@ jobs:
                   width=3
               )
 
-          # Light rays
           rays = Image.new(
               "RGBA",
               (W, H),
@@ -555,9 +520,8 @@ jobs:
 
           img.save("work/images/scene4.png")
 
-
           # ==========================================
-          # SCENE 5 - DAWN
+          # SCENE 5
           # ==========================================
 
           img = gradient(
@@ -567,7 +531,8 @@ jobs:
 
           img = glow(
               img,
-              (540, 1050),
+              540,
+              1050,
               560,
               GOLD,
               45
@@ -575,7 +540,6 @@ jobs:
 
           draw = ImageDraw.Draw(img)
 
-          # Horizon glow
           for y in range(1050, 1500):
 
               t = (y - 1050) / 450
@@ -589,13 +553,11 @@ jobs:
                   fill=(r, g, b)
               )
 
-          # Sun
           draw.ellipse(
               (430, 960, 650, 1180),
               fill=(225, 190, 110)
           )
 
-          # Foreground
           draw.polygon(
               [
                   (0, 1480),
@@ -609,8 +571,6 @@ jobs:
               fill=(3, 7, 9)
           )
 
-          mosque(img)
-
           img = vignette(img)
 
           img.save("work/images/scene5.png")
@@ -621,14 +581,12 @@ jobs:
 
           python3 work/create_visuals.py
 
-
       # ==========================================
       # DOWNLOAD MALE VOICE
       # ==========================================
       - name: Download male voice
         run: |
           python3 -m piper.download_voices en_US-hfc_male-medium
-
 
       # ==========================================
       # CREATE VOICE SEGMENTS
@@ -651,12 +609,12 @@ jobs:
           EOF
 
           cat > work/part4.txt <<'EOF'
-          So before you act, ask yourself...
+          So before you do something, ask yourself...
           Why am I doing this?
           EOF
 
           cat > work/part5.txt <<'EOF'
-          A sincere intention can turn a small action into a great reward.
+          A small action with a sincere intention can have a huge reward.
           EOF
 
           cat > work/part6.txt <<'EOF'
@@ -671,6 +629,8 @@ jobs:
           for i in 1 2 3 4 5 6 7
           do
 
+            echo "Generating voice segment $i..."
+
             cat work/part$i.txt | \
             piper \
               --model en_US-hfc_male-medium \
@@ -679,46 +639,100 @@ jobs:
             ffmpeg -y \
               -i work/raw$i.wav \
               -filter:a "atempo=0.92" \
+              -ar 22050 \
+              -ac 1 \
               work/part$i.wav
 
           done
 
           echo "VOICE SEGMENTS CREATED"
 
-
       # ==========================================
       # BUILD FINAL VOICE
       # ==========================================
-     
       - name: Build final voice
         run: |
 
+          echo "Creating silence files..."
+
           ffmpeg -y \
-            -i work/part1.wav \
-            -i work/part2.wav \
-            -i work/part3.wav \
-            -i work/part4.wav \
-            -i work/part5.wav \
-            -i work/part6.wav \
-            -i work/part7.wav \
-            -filter_complex "
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono" \
+            -t 0.8 \
+            -c:a pcm_s16le \
+            work/silence1.wav
 
-              anullsrc=r=22050:cl=mono:d=0.8[s1];
-              anullsrc=r=22050:cl=mono:d=0.7[s2];
-              anullsrc=r=22050:cl=mono:d=0.9[s3];
-              anullsrc=r=22050:cl=mono:d=0.8[s4];
-              anullsrc=r=22050:cl=mono:d=0.8[s5];
-              anullsrc=r=22050:cl=mono:d=0.7[s6];
+          ffmpeg -y \
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono" \
+            -t 0.7 \
+            -c:a pcm_s16le \
+            work/silence2.wav
 
-              [0:a][s1][1:a][s2][2:a][s3][3:a][s4][4:a][s5][5:a][s6][6:a]
-              concat=n=13:v=0:a=1
-              loudnorm=I=-16:TP=-1.5:LRA=11
-              apad
-              atrim=duration=40
-              [voice]
+          ffmpeg -y \
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono" \
+            -t 0.9 \
+            -c:a pcm_s16le \
+            work/silence3.wav
 
-            " \
-            -map "[voice]" \
+          ffmpeg -y \
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono" \
+            -t 0.8 \
+            -c:a pcm_s16le \
+            work/silence4.wav
+
+          ffmpeg -y \
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono" \
+            -t 0.8 \
+            -c:a pcm_s16le \
+            work/silence5.wav
+
+          ffmpeg -y \
+            -f lavfi \
+            -i "anullsrc=r=22050:cl=mono" \
+            -t 0.7 \
+            -c:a pcm_s16le \
+            work/silence6.wav
+
+          cat > work/audio_list.txt <<'EOF'
+          file 'part1.wav'
+          file 'silence1.wav'
+          file 'part2.wav'
+          file 'silence2.wav'
+          file 'part3.wav'
+          file 'silence3.wav'
+          file 'part4.wav'
+          file 'silence4.wav'
+          file 'part5.wav'
+          file 'silence5.wav'
+          file 'part6.wav'
+          file 'silence6.wav'
+          file 'part7.wav'
+          EOF
+
+          echo "Joining voice..."
+
+          cd work
+
+          ffmpeg -y \
+            -f concat \
+            -safe 0 \
+            -i audio_list.txt \
+            -c copy \
+            voice_joined.wav
+
+          cd ..
+
+          echo "Normalizing final voice..."
+
+          ffmpeg -y \
+            -i work/voice_joined.wav \
+            -af "loudnorm=I=-16:TP=-1.5:LRA=11,apad,atrim=duration=40" \
+            -ar 22050 \
+            -ac 1 \
             -c:a pcm_s16le \
             work/voice.wav
 
@@ -729,7 +743,6 @@ jobs:
             -show_entries format=duration \
             -of default=noprint_wrappers=1 \
             work/voice.wav
-
 
       # ==========================================
       # ANIMATE SCENE 1
@@ -749,7 +762,6 @@ jobs:
             -pix_fmt yuv420p \
             work/scenes/scene1.mp4
 
-
       # ==========================================
       # ANIMATE SCENE 2
       # ==========================================
@@ -767,7 +779,6 @@ jobs:
             -crf 20 \
             -pix_fmt yuv420p \
             work/scenes/scene2.mp4
-
 
       # ==========================================
       # ANIMATE SCENE 3
@@ -787,7 +798,6 @@ jobs:
             -pix_fmt yuv420p \
             work/scenes/scene3.mp4
 
-
       # ==========================================
       # ANIMATE SCENE 4
       # ==========================================
@@ -805,7 +815,6 @@ jobs:
             -crf 20 \
             -pix_fmt yuv420p \
             work/scenes/scene4.mp4
-
 
       # ==========================================
       # ANIMATE SCENE 5
@@ -825,9 +834,8 @@ jobs:
             -pix_fmt yuv420p \
             work/scenes/scene5.mp4
 
-
       # ==========================================
-      # JOIN SCENES
+      # JOIN CINEMATIC SCENES
       # ==========================================
       - name: Join cinematic scenes
         run: |
@@ -854,7 +862,6 @@ jobs:
             -show_entries format=duration \
             -of default=noprint_wrappers=1 \
             work/background.mp4
-
 
       # ==========================================
       # CREATE SUBTITLES
@@ -886,11 +893,11 @@ jobs:
 
           Dialogue: 0,0:00:18.50,0:00:24.80,Main,,0,0,0,,and every person will get the reward according to what they have intended.
 
-          Dialogue: 0,0:00:24.80,0:00:28.50,Main,,0,0,0,,So before you act, ask yourself...
+          Dialogue: 0,0:00:24.80,0:00:28.50,Main,,0,0,0,,So before you do something, ask yourself:
 
           Dialogue: 0,0:00:28.50,0:00:32.00,Main,,0,0,0,,WHY AM I DOING THIS?
 
-          Dialogue: 0,0:00:32.00,0:00:36.00,Main,,0,0,0,,A sincere intention can turn a small action into a great reward.
+          Dialogue: 0,0:00:32.00,0:00:36.00,Main,,0,0,0,,A small action with a sincere intention can have a huge reward.
 
           Dialogue: 0,0:00:36.00,0:00:39.00,Main,,0,0,0,,WHAT WILL YOU MAKE YOUR INTENTION FOR TODAY?
 
@@ -898,17 +905,18 @@ jobs:
 
           EOF
 
-
       # ==========================================
       # RENDER FINAL REEL
       # ==========================================
       - name: Render final Reel
         run: |
 
+          echo "Rendering final Reel..."
+
           ffmpeg -y \
             -i work/background.mp4 \
             -i work/voice.wav \
-            -vf "fade=t=in:st=0:d=1,fade=t=38:d=2,subtitles=work/subtitles.ass" \
+            -vf "fade=t=in:st=0:d=1,fade=t=out:st=38:d=2,subtitles=work/subtitles.ass" \
             -map 0:v:0 \
             -map 1:a:0 \
             -t 40 \
@@ -918,13 +926,13 @@ jobs:
             -pix_fmt yuv420p \
             -c:a aac \
             -b:a 192k \
+            -ar 44100 \
             -movflags +faststart \
             output/deen-in-sec-hadith-001.mp4
 
           echo "FINAL REEL RENDERED"
 
           ls -lh output/deen-in-sec-hadith-001.mp4
-
 
       # ==========================================
       # CHECK FINAL REEL
@@ -945,9 +953,8 @@ jobs:
             -of default=noprint_wrappers=1 \
             output/deen-in-sec-hadith-001.mp4
 
-
       # ==========================================
-      # UPLOAD REEL AS ARTIFACT
+      # UPLOAD REEL
       # ==========================================
       - name: Upload Reel
         uses: actions/upload-artifact@v4
