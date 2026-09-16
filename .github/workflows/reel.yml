@@ -45,8 +45,7 @@ jobs:
         run: |
           cat > work/script.txt <<'EOF'
           Your actions might look good...
-             but what really matters is WHY you did them.
-          
+          but what really matters is WHY you did them.
 
           The Prophet Muhammad, peace and blessings be upon him, said:
 
@@ -63,14 +62,10 @@ jobs:
 
           Sahih al-Bukhari 1.
           Narrated by Umar ibn al-Khattab, may Allah be pleased with him.
-
-          
-          
-          
-          
+          EOF
 
       # ==========================================
-      # GENERATE DEEP MALE AI VOICE
+      # GENERATE CALM MALE AI VOICE
       # ==========================================
       - name: Generate male voice
         run: |
@@ -78,17 +73,13 @@ jobs:
 
           cat work/script.txt | \
           piper \
-            --model en_US-ryan-high \
-            --output_file work/voice.wav
+            --model en_US-hfc_male-medium \
+            --output_file work/voice_raw.wav
 
-            ffmpeg -y \
-            -i work/voice.wav \
+          ffmpeg -y \
+            -i work/voice_raw.wav \
             -filter:a "atempo=0.94" \
-            work/voice-slow.wav
-            mv work/voice-slow.wav work/voice.wav
-          
-            
-            
+            work/voice.wav
 
           echo "VOICE CREATED"
           ls -lh work/voice.wav
@@ -109,8 +100,8 @@ jobs:
               drawbox=x=440:y=650:w=200:h=700:color=#000000@0.9:t=fill,
               drawbox=x=350:y=850:w=380:h=500:color=#000000@0.9:t=fill,
               drawbox=x=470:y=500:w=140:h=150:color=#000000@0.9:t=fill,
-              drawtext=text='A GOOD DEED':x=(w-text_w)/2:y=260:fontsize=72:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-              drawtext=text='CAN STILL BE LOST':x=(w-text_w)/2:y=350:fontsize=54:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='YOUR ACTIONS':x=(w-text_w)/2:y=260:fontsize=70:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='MIGHT LOOK GOOD...':x=(w-text_w)/2:y=350:fontsize=54:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
@@ -136,8 +127,8 @@ jobs:
               drawbox=x=430:y=900:w=220:h=12:color=#c9aa63@0.35:t=fill,
               drawbox=x=430:y=1000:w=220:h=12:color=#c9aa63@0.35:t=fill,
               drawbox=x=430:y=1100:w=220:h=12:color=#c9aa63@0.35:t=fill,
-              drawtext=text='THE REWARD':x=(w-text_w)/2:y=250:fontsize=70:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-              drawtext=text='DEPENDS ON':x=(w-text_w)/2:y=340:fontsize=58:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='THE REWARD':x=(w-text_w)/2:y=250:fontsize=70:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='DEPENDS ON':x=(w-text_w)/2:y=340:fontsize=58:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
               drawtext=text='THE INTENTION':x=(w-text_w)/2:y=420:fontsize=58:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
@@ -165,7 +156,7 @@ jobs:
               drawbox=x=330:y=960:w=420:h=14:color=#c9aa63@0.28:t=fill,
               drawbox=x=330:y=1070:w=420:h=14:color=#c9aa63@0.28:t=fill,
               drawbox=x=330:y=1180:w=420:h=14:color=#c9aa63@0.28:t=fill,
-              drawtext=text='WHY AM I':x=(w-text_w)/2:y=250:fontsize=72:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='WHY AM I':x=(w-text_w)/2:y=250:fontsize=72:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
               drawtext=text='DOING THIS?':x=(w-text_w)/2:y=350:fontsize=72:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
@@ -189,8 +180,8 @@ jobs:
               drawbox=x=540:y=300:w=6:h=1300:color=#c9aa63@0.20:t=fill,
               drawbox=x=250:y=850:w=580:h=8:color=#c9aa63@0.30:t=fill,
               drawbox=x=350:y=700:w=380:h=300:color=#020507@0.75:t=fill,
-              drawtext=text='SINCERE':x=(w-text_w)/2:y=300:fontsize=82:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-              drawtext=text='INTENTION':x=(w-text_w)/2:y=400:fontsize=82:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='SINCERE':x=(w-text_w)/2:y=300:fontsize=82:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='INTENTION':x=(w-text_w)/2:y=400:fontsize=82:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
               drawtext=text='CAN CHANGE EVERYTHING':x=(w-text_w)/2:y=1450:fontsize=42:fontcolor=white@0.70:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
@@ -214,10 +205,11 @@ jobs:
               drawbox=x=170:y=170:w=740:h=1580:color=#c9aa63@0.05:t=3,
               drawbox=x=390:y=680:w=300:h=700:color=#020507@0.8:t=fill,
               drawbox=x=330:y=880:w=420:h=450:color=#020507@0.9:t=fill,
-              drawtext=text='BEFORE YOUR':x=(w-text_w)/2:y=250:fontsize=62:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-              drawtext=text='NEXT GOOD DEED':x=(w-text_w)/2:y=350:fontsize=68:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-              drawtext=text='CHECK YOUR INTENTION':x=(w-text_w)/2:y=1480:fontsize=46:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
-              drawtext=text='DEEN IN SEC':x=(w-text_w)/2:y=1580:fontsize=40:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+              drawtext=text='YOUR INTENTION':x=(w-text_w)/2:y=250:fontsize=62:fontcolor=white:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='MATTERS':x=(w-text_w)/2:y=350:fontsize=68:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='WHAT WILL YOU MAKE YOUR':x=(w-text_w)/2:y=1480:fontsize=40:fontcolor=white@0.70:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='INTENTION FOR TODAY?':x=(w-text_w)/2:y=1540:fontsize=40:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,
+              drawtext=text='DEEN IN SEC':x=(w-text_w)/2:y=1650:fontsize=40:fontcolor=#e7c77b:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
             " \
             -c:v libx264 \
             -preset veryfast \
@@ -246,7 +238,9 @@ jobs:
             work/background.mp4
 
           echo "CINEMATIC BACKGROUND CREATED"
-          ffprobe -v error -show_entries format=duration \
+
+          ffprobe -v error \
+            -show_entries format=duration \
             -of default=noprint_wrappers=1 \
             work/background.mp4
 
@@ -270,9 +264,8 @@ jobs:
 
           Dialogue: 0,0:00:00.00,0:00:03.50,Main,,0,0,0,,YOUR ACTIONS MIGHT LOOK GOOD...
           Dialogue: 0,0:00:03.50,0:00:07.00,Main,,0,0,0,,BUT WHAT REALLY MATTERS IS WHY YOU DID THEM.
-          
 
-          Dialogue: 0,0:00:07.00,0:00:11.50,Main,,0,0,0,,The Prophet Muhammad ﷺ said:
+          Dialogue: 0,0:00:07.00,0:00:11.50,Main,,0,0,0,,The Prophet Muhammad, peace and blessings be upon him, said:
 
           Dialogue: 0,0:00:11.50,0:00:17.00,Main,,0,0,0,,The reward of deeds depends upon the intentions,
 
@@ -284,8 +277,9 @@ jobs:
 
           Dialogue: 0,0:00:31.00,0:00:36.00,Main,,0,0,0,,A small action with a sincere intention can have a huge reward.
 
-          Dialogue: 0,0:00:32.00,0:00:36.00,Main,,0,0,0,,WHAT WILL YOU MAKE YOUR INTENTION FOR TODAY? 🤍
-          Dialogue: 0,0:00:36.00,0:00:40.00,Main,,0,0,0,,SAHIH AL-BUKHARI 1 • UMAR IBN AL-KHATTAB
+          Dialogue: 0,0:00:36.00,0:00:40.00,Main,,0,0,0,,WHAT WILL YOU MAKE YOUR INTENTION FOR TODAY? 🤍
+
+          Dialogue: 0,0:00:38.00,0:00:40.00,Main,,0,0,0,,SAHIH AL-BUKHARI 1 • UMAR IBN AL-KHATTAB
 
           EOF
 
