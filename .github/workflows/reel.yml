@@ -1,4 +1,4 @@
-name: Deen in Sec - Create Reel V6
+name: Deen in Sec - Create Reel V7
 
 on:
   workflow_dispatch:
@@ -11,420 +11,180 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install tools
         run: |
-          set -e
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu fonts-liberation2
-          python3 -m pip install --upgrade pip
-          python3 -m pip install pillow piper-tts
+          sudo apt-get install -y ffmpeg fonts-dejavu python3-pip
+          python -m pip install --upgrade pip
+          python -m pip install piper-tts requests pillow
+
+      - name: Check Pexels key
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          if [ -z "$PEXELS_API_KEY" ]; then
+            echo "PEXELS_API_KEY GitHub secret is missing."
+            exit 1
+          fi
 
       - name: Prepare folders
         run: |
-          set -e
           rm -rf work output
-          mkdir -p work/scenes work/voice work/subtitles output
+          mkdir -p work/assets work/voice work/scenes output
 
-      - name: Create cinematic scenes
+      - name: Download real stock footage from Pexels
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
-          cat > work/create_scenes.py <<'PY'
-          from PIL import Image, ImageDraw, ImageFilter
-          import math
+          cat > work/download_assets.py <<'PY'
           import os
-          import random
+          import requests
+          import sys
+          import json
+          import time
+          from pathlib import Path
 
-          W = 1080
-          H = 1920
-          OUT = "work/scenes"
-          random.seed(20260917)
+          API = "https://api.pexels.com/v1/videos/search"
+          KEY = os.environ["PEXELS_API_KEY"]
+          OUT = Path("work/assets")
+          OUT.mkdir(parents=True, exist_ok=True)
 
-          os.makedirs(OUT, exist_ok=True)
+          searches = [
+              ("scene1", "mosque architecture night cinematic"),
+              ("scene2", "quran open book close up cinematic"),
+              ("scene3", "night sky mountains peaceful cinematic"),
+              ("scene4", "mosque interior architecture cinematic"),
+              ("scene5", "mosque sunrise dawn cinematic"),
+          ]
 
-          def rgba(rgb, alpha=255):
-              return (rgb[0], rgb[1], rgb[2], alpha)
+          headers = {
+              "Authorization": KEY,
+              "User-Agent": "DeenInSec/7.0"
+          }
 
-          def gradient(top, bottom):
-              img = Image.new("RGBA", (W, H))
-              p = img.load()
-              for y in range(H):
-                  t = y / (H - 1)
-                  c = tuple(
-                      int(top[i] * (1 - t) + bottom[i] * t)
-                      for i in range(3)
-                  )
-                  for x in range(W):
-                      p[x, y] = (*c, 255)
-              return img
+          session = requests.Session()
 
-          def glow(img, cx, cy, radius, color, alpha):
-              layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-              d = ImageDraw.Draw(layer)
-              for r in range(radius, 12, -18):
-                  a = int(alpha * (1 - r / radius) ** 2)
-                  d.ellipse(
-                      (cx-r, cy-r, cx+r, cy+r),
-                      fill=(*color, max(0, a))
-                  )
-              layer = layer.filter(ImageFilter.GaussianBlur(20))
-              return Image.alpha_composite(img.convert("RGBA"), layer)
+          def fail(msg):
+              print(msg)
+              sys.exit(1)
 
-          def vignette(img):
-              overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-              d = ImageDraw.Draw(overlay)
-              d.rectangle((0, 0, W, H), fill=(0, 0, 0, 55))
-              d.ellipse(
-                  (-250, -350, W+250, H+350),
-                  fill=(0, 0, 0, 0),
-                  outline=(0, 0, 0, 115),
-                  width=260
+          for name, query in searches:
+              print(f"Searching Pexels: {query}")
+
+              r = session.get(
+                  API,
+                  headers=headers,
+                  params={
+                      "query": query,
+                      "orientation": "portrait",
+                      "size": "large",
+                      "per_page": 15,
+                  },
+                  timeout=30,
               )
-              return Image.alpha_composite(img.convert("RGBA"), overlay)
 
-          def particles(img, count, y1, y2, seed):
-              rng = random.Random(seed)
-              d = ImageDraw.Draw(img)
-              for _ in range(count):
-                  x = rng.randint(35, W - 35)
-                  y = rng.randint(y1, y2)
-                  r = rng.choice([1, 1, 1, 2, 2, 3])
-                  a = rng.randint(35, 125)
-                  d.ellipse(
-                      (x-r, y-r, x+r, y+r),
-                      fill=(224, 190, 112, a)
+              if r.status_code != 200:
+                  fail(
+                      f"Pexels search failed: HTTP "
+                      f"{r.status_code}: {r.text[:500]}"
                   )
 
-          def crescent(img, cx, cy, radius):
-              d = ImageDraw.Draw(img)
-              d.ellipse(
-                  (cx-radius, cy-radius, cx+radius, cy+radius),
-                  fill=(244, 225, 169, 245)
-              )
-              d.ellipse(
-                  (cx-radius+38, cy-radius-18,
-                   cx+radius+38, cy+radius-18),
-                  fill=(5, 8, 20, 255)
-              )
+              data = r.json()
+              videos = data.get("videos", [])
 
-          def mosque(img, base):
-              d = ImageDraw.Draw(img)
-              cx = W // 2
+              if not videos:
+                  fail(f"No Pexels results for {query}")
 
-              d.rectangle(
-                  (0, base, W, H),
-                  fill=(4, 6, 11, 255)
-              )
+              chosen = None
 
-              d.rectangle(
-                  (cx-310, base-230, cx+310, base+30),
-                  fill=(5, 7, 12, 255)
-              )
+              for v in videos:
+                  files = v.get("video_files", [])
 
-              d.ellipse(
-                  (cx-310, base-650, cx+310, base-40),
-                  fill=(5, 7, 12, 255)
-              )
-
-              for sx in (cx-430, cx+430):
-                  d.rectangle(
-                      (sx-58, base-540, sx+58, base+45),
-                      fill=(4, 6, 11, 255)
-                  )
-                  d.polygon(
-                      [
-                          (sx-82, base-540),
-                          (sx, base-675),
-                          (sx+82, base-540)
-                      ],
-                      fill=(4, 6, 11, 255)
-                  )
-                  d.line(
-                      (sx, base-675, sx, base-720),
-                      fill=(204, 164, 83, 190),
-                      width=4
-                  )
-                  d.ellipse(
-                      (sx-8, base-732, sx+8, base-716),
-                      fill=(224, 185, 101, 230)
+                  files = sorted(
+                      files,
+                      key=lambda x: (
+                          x.get("width", 0) * x.get("height", 0),
+                          x.get("height", 0)
+                      ),
+                      reverse=True,
                   )
 
-              d.rounded_rectangle(
-                  (cx-105, base-15, cx+105, base+35),
-                  radius=80,
-                  fill=(21, 15, 12, 255)
-              )
+                  usable = [
+                      f for f in files
+                      if f.get("link")
+                      and f.get("width", 0) >= 720
+                      and f.get("height", 0) >= 720
+                  ]
 
-              for x in (cx-220, cx+220):
-                  d.ellipse(
-                      (x-32, base-190, x+32, base-125),
-                      fill=(177, 135, 62, 90)
+                  if usable and v.get("duration", 0) >= 5:
+                      chosen = (v, usable[0])
+                      break
+
+              if not chosen:
+                  fail(
+                      f"No usable high-resolution clip for {query}"
                   )
 
-          # Scene 1: night mosque
-          scene = gradient((3, 7, 19), (27, 17, 14))
-          scene = glow(scene, 800, 315, 250, (220, 181, 91), 135)
-          crescent(scene, 800, 315, 94)
+              video, vf = chosen
+              url = vf["link"]
+              target = OUT / f"{name}.mp4"
 
-          d = ImageDraw.Draw(scene)
-          rng = random.Random(11)
-          for _ in range(190):
-              x = rng.randint(25, 1055)
-              y = rng.randint(65, 1050)
-              r = rng.choice([1, 1, 2, 2, 3])
-              a = rng.randint(45, 175)
-              d.ellipse((x-r, y-r, x+r, y+r),
-                        fill=(229, 218, 188, a))
-
-          mosque(scene, 1430)
-          particles(scene, 85, 900, 1700, 12)
-          scene = vignette(scene)
-          scene.save(f"{OUT}/scene1.png")
-
-          # Scene 2: illuminated Hadith book
-          scene = gradient((12, 8, 7), (55, 32, 16))
-          scene = glow(scene, 540, 940, 580, (208, 158, 74), 85)
-          d = ImageDraw.Draw(scene)
-
-          for y in range(0, H, 48):
-              d.line(
-                  (0, y, W, y+random.randint(-5, 5)),
-                  fill=(111, 67, 31, 55),
-                  width=2
+              print(
+                  f"Downloading Pexels video "
+                  f"{video['id']} -> {target}"
               )
 
-          d.rounded_rectangle(
-              (90, 595, 990, 1515),
-              radius=58,
-              fill=(5, 4, 3, 165)
-          )
+              with session.get(
+                  url,
+                  stream=True,
+                  timeout=120
+              ) as dl:
 
-          d.rounded_rectangle(
-              (112, 565, 968, 1450),
-              radius=55,
-              fill=(67, 38, 17, 255),
-              outline=(191, 143, 62, 220),
-              width=7
-          )
+                  if dl.status_code != 200:
+                      fail(
+                          f"Download failed: HTTP "
+                          f"{dl.status_code}"
+                      )
 
-          d.polygon(
-              [(175, 655), (520, 710), (540, 1380), (175, 1315)],
-              fill=(239, 226, 193, 255)
-          )
+                  with open(target, "wb") as f:
+                      for chunk in dl.iter_content(
+                          chunk_size=1024 * 1024
+                      ):
+                          if chunk:
+                              f.write(chunk)
 
-          d.polygon(
-              [(905, 655), (560, 710), (540, 1380), (905, 1315)],
-              fill=(231, 218, 183, 255)
-          )
+              source = {
+                  "pexels_video_id": video.get("id"),
+                  "pexels_page": video.get("url"),
+                  "photographer": video.get(
+                      "user", {}
+                  ).get("name", ""),
+                  "query": query,
+                  "download_url": url,
+                  "width": vf.get("width"),
+                  "height": vf.get("height"),
+                  "duration": video.get("duration"),
+              }
 
-          d.line(
-              (540, 710, 540, 1380),
-              fill=(111, 75, 39, 255),
-              width=9
-          )
-
-          for yy in range(785, 1280, 67):
-              d.line(
-                  (235, yy, 478, yy+32),
-                  fill=(100, 70, 44, 145),
-                  width=5
-              )
-              d.line(
-                  (602, yy+32, 845, yy),
-                  fill=(100, 70, 44, 145),
-                  width=5
+              (OUT / f"{name}.json").write_text(
+                  json.dumps(
+                      source,
+                      indent=2
+                  ),
+                  encoding="utf-8"
               )
 
-          d.rectangle(
-              (790, 630, 837, 1195),
-              fill=(198, 146, 54, 220)
-          )
-
-          d.polygon(
-              [(790, 1195), (814, 1150), (837, 1195)],
-              fill=(198, 146, 54, 220)
-          )
-
-          particles(scene, 65, 450, 1600, 22)
-          scene = vignette(scene)
-          scene.save(f"{OUT}/scene2.png")
-
-          # Scene 3: moonlit landscape
-          scene = gradient((3, 7, 20), (25, 34, 41))
-          scene = glow(scene, 795, 350, 260, (226, 195, 120), 125)
-          d = ImageDraw.Draw(scene)
-
-          d.ellipse(
-              (705, 260, 875, 430),
-              fill=(241, 229, 191, 245)
-          )
-          d.ellipse(
-              (758, 235, 910, 387),
-              fill=(4, 9, 21, 255)
-          )
-
-          d.polygon(
-              [
-                  (0, 1250), (180, 1000), (370, 1230),
-                  (600, 875), (850, 1210), (1080, 1010),
-                  (1080, H), (0, H)
-              ],
-              fill=(6, 13, 20, 255)
-          )
-
-          d.polygon(
-              [
-                  (0, 1430), (250, 1140), (505, 1435),
-                  (760, 1100), (1080, 1390),
-                  (1080, H), (0, H)
-              ],
-              fill=(8, 19, 25, 255)
-          )
-
-          d.rectangle(
-              (0, 1500, W, H),
-              fill=(6, 20, 28, 255)
-          )
-
-          for i in range(17):
-              yy = 1530 + i * 38
-              width = max(12, 145 - i * 7)
-              d.line(
-                  (540-width, yy, 540+width, yy),
-                  fill=(195, 166, 104, max(15, 88-i*4)),
-                  width=4
-              )
-
-          particles(scene, 105, 100, 1350, 33)
-          scene = vignette(scene)
-          scene.save(f"{OUT}/scene3.png")
-
-          # Scene 4: mosque interior
-          scene = gradient((8, 7, 7), (52, 34, 19))
-          scene = glow(scene, 540, 390, 390, (231, 191, 111), 80)
-          d = ImageDraw.Draw(scene)
-
-          d.rectangle(
-              (130, 420, 950, 1530),
-              fill=(41, 30, 22, 255)
-          )
-
-          d.ellipse(
-              (130, 160, 950, 690),
-              fill=(41, 30, 22, 255)
-          )
-
-          d.rectangle(
-              (205, 455, 875, 1530),
-              fill=(10, 9, 8, 255)
-          )
-
-          for x in (78, 907):
-              d.rounded_rectangle(
-                  (x, 345, x+95, 1580),
-                  radius=18,
-                  fill=(65, 48, 33, 255)
-              )
-
-          for x in (250, 540, 830):
-              d.line(
-                  (x, 0, x, 345),
-                  fill=(177, 137, 64, 150),
-                  width=3
-              )
-              d.ellipse(
-                  (x-20, 330, x+20, 395),
-                  fill=(235, 195, 103, 150)
-              )
-
-          for y in range(1480, H, 105):
-              d.line(
-                  (65, y, 1015, y),
-                  fill=(125, 91, 52, 105),
-                  width=2
-              )
-
-          for x in range(80, 1080, 120):
-              d.line(
-                  (x, 1480, x-110, H),
-                  fill=(125, 91, 52, 70),
-                  width=2
-              )
-
-          beam = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-          bd = ImageDraw.Draw(beam)
-          bd.polygon(
-              [(420, 0), (660, 0), (790, 1480), (290, 1480)],
-              fill=(245, 207, 135, 35)
-          )
-          beam = beam.filter(ImageFilter.GaussianBlur(24))
-          scene = Image.alpha_composite(scene, beam)
-
-          particles(scene, 100, 180, 1600, 44)
-          scene = vignette(scene)
-          scene.save(f"{OUT}/scene4.png")
-
-          # Scene 5: dawn mosque
-          scene = gradient((13, 19, 38), (126, 73, 36))
-          scene = glow(scene, 540, 620, 380, (255, 195, 104), 155)
-          d = ImageDraw.Draw(scene)
-
-          d.ellipse(
-              (465, 545, 615, 695),
-              fill=(255, 215, 139, 238)
-          )
-
-          rays = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-          rd = ImageDraw.Draw(rays)
-
-          for angle in range(-70, 71, 14):
-              a = math.radians(angle)
-              x2 = 540 + int(math.sin(a) * 1350)
-              y2 = 620 + int(math.cos(a) * 1350)
-              rd.polygon(
-                  [(540, 620), (x2-18, y2), (x2+18, y2)],
-                  fill=(255, 205, 125, 19)
-              )
-
-          rays = rays.filter(ImageFilter.GaussianBlur(16))
-          scene = Image.alpha_composite(scene, rays)
-
-          mosque(scene, 1390)
-          particles(scene, 80, 430, 1550, 55)
-          scene = vignette(scene)
-          scene.save(f"{OUT}/scene5.png")
-
-          print("Created five cinematic scenes.")
+              time.sleep(0.5)
           PY
 
-          python3 work/create_scenes.py
+          python work/download_assets.py
 
-      - name: Verify scenes
+      - name: Generate male voice
         run: |
-          set -e
-          for f in work/scenes/scene{1,2,3,4,5}.png; do
-            test -s "$f"
-            identify_output="$(file "$f")"
-            echo "$f: $identify_output"
-          done
-
-      - name: Download masculine Piper voice
-        run: |
-          set -e
-          python3 -m piper.download_voices en_US-hfc_male-medium
-          VOICE_MODEL="$(
-            find "$HOME" \
-              -type f \
-              -name "en_US-hfc_male-medium.onnx" \
-              | head -n 1
-          )"
-          test -n "$VOICE_MODEL"
-          echo "VOICE_MODEL=$VOICE_MODEL" >> "$GITHUB_ENV"
-
-      - name: Create approved narration
-        run: |
-          set -e
+          python -m piper.download_voices en_US-hfc_male-medium
 
           cat > work/voice/part1.txt <<'EOF'
           Your actions might look good... but what really matters is WHY you did them.
@@ -439,7 +199,7 @@ jobs:
           EOF
 
           cat > work/voice/part4.txt <<'EOF'
-          So before you do something... ask yourself: Why am I doing this?
+          So before you do something... ask yourself... Why am I doing this?
           EOF
 
           cat > work/voice/part5.txt <<'EOF'
@@ -455,471 +215,554 @@ jobs:
           EOF
 
           for n in 1 2 3 4 5 6 7; do
-            test -s "work/voice/part${n}.txt"
-          done
-
-      - name: Generate narration parts
-        run: |
-          set -e
-
-          for n in 1 2 3 4 5 6 7; do
-            python3 -m piper \
-              --model "$VOICE_MODEL" \
-              --input_file "work/voice/part${n}.txt" \
-              --output_file "work/voice/raw${n}.wav"
+            python -m piper \
+              -m en_US-hfc_male-medium \
+              -f "work/voice/p$n.wav" \
+              < "work/voice/part$n.txt"
 
             ffmpeg -y -loglevel error \
-              -i "work/voice/raw${n}.wav" \
+              -i "work/voice/p$n.wav" \
               -filter:a "atempo=0.92" \
-              "work/voice/part${n}.wav"
+              "work/voice/s$n.wav"
           done
 
-      - name: Build narration timeline
-        run: |
-          set -e
+          python - <<'PY'
+          from pathlib import Path
+          import wave
 
-          ffmpeg -y -loglevel error \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.80 \
-            work/voice/pause_long.wav
+          pauses = {
+              1: 0.65,
+              2: 0.40,
+              3: 0.40,
+              4: 0.65,
+              5: 0.65,
+              6: 0.65,
+          }
 
-          ffmpeg -y -loglevel error \
-            -f lavfi \
-            -i "anullsrc=r=22050:cl=mono" \
-            -t 0.45 \
-            work/voice/pause_short.wav
+          rate = 22050
 
-          cat > work/voice/list.txt <<'EOF'
-          file 'part1.wav'
-          file 'pause_long.wav'
-          file 'part2.wav'
-          file 'pause_short.wav'
-          file 'part3.wav'
-          file 'pause_long.wav'
-          file 'part4.wav'
-          file 'pause_short.wav'
-          file 'part5.wav'
-          file 'pause_short.wav'
-          file 'part6.wav'
-          file 'pause_long.wav'
-          file 'part7.wav'
-          EOF
-                    cd work/voice
+          for n, seconds in pauses.items():
+              path = Path(
+                  f"work/voice/pause{n}.wav"
+              )
+
+              count = int(rate * seconds)
+
+              with wave.open(str(path), "wb") as w:
+                  w.setnchannels(1)
+                  w.setsampwidth(2)
+                  w.setframerate(rate)
+                  w.writeframes(
+                      b"\0\0" * count
+                  )
+
+          lines = []
+
+          for n in range(1, 8):
+              lines.append(
+                  f"file '{Path(f'work/voice/s{n}.wav').resolve()}'"
+              )
+
+              if n != 7:
+                  lines.append(
+                      f"file '{Path(f'work/voice/pause{n}.wav').resolve()}'"
+                  )
+
+          Path(
+              "work/voice/concat.txt"
+          ).write_text(
+              "\n".join(lines) + "\n"
+          )
+          PY
 
           ffmpeg -y -loglevel error \
             -f concat \
             -safe 0 \
-            -i list.txt \
+            -i work/voice/concat.txt \
             -c:a pcm_s16le \
-            voice_raw.wav
+            work/voice/final.wav
 
-          cd ../..
-
-          ORIGINAL_DURATION="$(
-            ffprobe -v error \
-              -show_entries format=duration \
-              -of csv=p=0 \
-              work/voice/voice_raw.wav
-          )"
-
-          python3 - "$ORIGINAL_DURATION" <<'PY'
-          import sys
-
-          duration = float(sys.argv[1])
-
-          if duration < 35.0 or duration > 39.0:
-              speed = duration / 37.0
-              speed = max(0.50, min(2.00, speed))
-          else:
-              speed = 1.0
-
-          with open("work/voice/speed.txt", "w") as f:
-              f.write(f"{speed:.8f}")
-
-          print(f"Original duration: {duration:.3f}")
-          print(f"Selected atempo: {speed:.8f}")
-          PY
-
-          SPEED="$(cat work/voice/speed.txt)"
-
-          ffmpeg -y -loglevel error \
-            -i work/voice/voice_raw.wav \
-            -filter:a "atempo=${SPEED},loudnorm=I=-16:TP=-1.5:LRA=11" \
-            work/voice/voice.wav
-
-          VOICE_DURATION="$(
-            ffprobe -v error \
-              -show_entries format=duration \
-              -of csv=p=0 \
-              work/voice/voice.wav
-          )"
-
-          echo "VOICE_DURATION=$VOICE_DURATION" >> "$GITHUB_ENV"
-          echo "Final narration duration: $VOICE_DURATION"
-
-      - name: Create subtitle timings
+      - name: Measure narration
         run: |
-          set -e
+          ffprobe \
+            -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            work/voice/final.wav \
+            > work/voice/duration.txt
 
-          python3 - <<'PY'
-          import subprocess
+          D=$(cat work/voice/duration.txt)
 
-          def dur(path):
-              value = subprocess.check_output(
-                  [
-                      "ffprobe",
-                      "-v", "error",
-                      "-show_entries", "format=duration",
-                      "-of", "csv=p=0",
-                      path
-                  ]
-              ).decode().strip()
-              return float(value)
+          echo "Narration duration: $D seconds"
 
-          parts = [
-              dur(f"work/voice/part{i}.wav")
-              for i in range(1, 8)
-          ]
-
-          pauses = [0.80, 0.45, 0.80, 0.45, 0.45, 0.80]
-
-          raw_total = sum(parts) + sum(pauses)
-          final_total = dur("work/voice/voice.wav")
-          scale = final_total / raw_total
-
-          starts = []
-          cursor = 0.0
-
-          for i, length in enumerate(parts):
-              start = cursor
-              end = cursor + length
-              starts.append((start * scale, end * scale))
-
-              cursor = end
-
-              if i < len(pauses):
-                  cursor += pauses[i]
-
-          with open("work/subtitles/timing.txt", "w") as f:
-              for i, (start, end) in enumerate(starts, 1):
-                  f.write(
-                      f"{i}|{start:.4f}|{end:.4f}\n"
-                  )
-
-          with open("work/subtitles/brand_start.txt", "w") as f:
-              f.write(f"{starts[6][0]:.4f}")
-
-          print("Subtitle timings:")
-          for i, pair in enumerate(starts, 1):
-              print(i, pair)
-          PY
-
-      - name: Calculate video geometry
-        run: |
-          set -e
-
-          python3 - "$VOICE_DURATION" <<'PY'
-          import sys
-
-          voice = float(sys.argv[1])
-          end_pad = 0.25
-          transition = 0.60
-
-          video_duration = voice + end_pad
-          scene_length = (
-              video_duration + 4 * transition
-          ) / 5.0
-
-          frames = max(
-              1,
-              round(scene_length * 30)
+          python - <<'PY'
+          d = float(
+              open(
+                  "work/voice/duration.txt"
+              ).read()
           )
 
-          offsets = [
-              scene_length - transition,
-              2 * scene_length - 2 * transition,
-              3 * scene_length - 3 * transition,
-              4 * scene_length - 4 * transition
-          ]
-
-          with open("work/animation.env", "w") as f:
-              f.write(f"SCENE_LEN={scene_length:.6f}\n")
-              f.write(f"FRAMES={frames}\n")
-              f.write(f"VIDEO_DURATION={video_duration:.6f}\n")
-
-              for i, value in enumerate(offsets, 1):
-                  f.write(f"OFFSET{i}={value:.6f}\n")
-
-          print(f"Voice: {voice:.3f}s")
-          print(f"Video: {video_duration:.3f}s")
-          print(f"Scene: {scene_length:.3f}s")
-          print(f"Frames: {frames}")
-          print("Offsets:", offsets)
+          if d < 32 or d > 44:
+              raise SystemExit(
+                  f"Narration duration {d:.2f}s "
+                  "is outside 32-44s."
+              )
           PY
 
-      - name: Animate cinematic camera movement
+      - name: Build cinematic stock scenes
         run: |
-          set -e
-          source work/animation.env
-
           for n in 1 2 3 4 5; do
-            case "$n" in
-              1)
-                X="iw/2-(iw/zoom/2)+sin(on/65)*30"
-                Y="ih/2-(ih/zoom/2)+cos(on/82)*18"
-                ;;
-              2)
-                X="iw/2-(iw/zoom/2)-sin(on/72)*34"
-                Y="ih/2-(ih/zoom/2)+cos(on/88)*22"
-                ;;
-              3)
-                X="iw/2-(iw/zoom/2)+sin(on/84)*28"
-                Y="ih/2-(ih/zoom/2)-cos(on/76)*20"
-                ;;
-              4)
-                X="iw/2-(iw/zoom/2)-sin(on/78)*30"
-                Y="ih/2-(ih/zoom/2)-cos(on/90)*24"
-                ;;
-              5)
-                X="iw/2-(iw/zoom/2)+sin(on/92)*26"
-                Y="ih/2-(ih/zoom/2)+cos(on/74)*20"
-                ;;
-            esac
-
-            ffmpeg -y -loglevel error \
-              -loop 1 \
-              -i "work/scenes/scene${n}.png" \
-              -vf "scale=1620:2880:force_original_aspect_ratio=increase,crop=1620:2880,zoompan=z='min(zoom+0.00065,1.055)':x='${X}':y='${Y}':d=${FRAMES}:s=1080x1920:fps=30,format=yuv420p" \
-              -t "$SCENE_LEN" \
+            ffmpeg \
+              -y \
+              -loglevel error \
+              -stream_loop -1 \
+              -i "work/assets/scene$n.mp4" \
+              -t 10 \
+              -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,eq=contrast=1.05:brightness=-0.02:saturation=0.90,curves=all='0/0 0.22/0.14 0.50/0.52 0.78/0.86 1/1',vignette=PI/5,format=yuv420p" \
               -an \
-              "work/scene${n}.mp4"
+              "work/scenes/scene$n.mp4"
           done
 
-      - name: Join cinematic scenes
+      - name: Create cinematic scene transitions
         run: |
-          set -e
-          source work/animation.env
-
-          ffmpeg -y -loglevel error \
-            -i work/scene1.mp4 \
-            -i work/scene2.mp4 \
-            -i work/scene3.mp4 \
-            -i work/scene4.mp4 \
-            -i work/scene5.mp4 \
-            -filter_complex "
-              [0:v][1:v]xfade=transition=fade:duration=0.60:offset=${OFFSET1}[v01];
-              [v01][2:v]xfade=transition=fade:duration=0.60:offset=${OFFSET2}[v012];
-              [v012][3:v]xfade=transition=fade:duration=0.60:offset=${OFFSET3}[v0123];
-              [v0123][4:v]xfade=transition=fade:duration=0.60:offset=${OFFSET4},format=yuv420p[v]
-            " \
-            -map "[v]" \
-            -t "$VIDEO_DURATION" \
-            -an \
-            work/background.mp4
-
-      - name: Create safe professional subtitles
-        run: |
-          set -e
-
-          python3 - <<'PY'
-          def ass_time(value):
-              value = max(0.0, float(value))
-              h = int(value // 3600)
-              m = int((value % 3600) // 60)
-              s = int(value % 60)
-              cs = int(round((value - int(value)) * 100))
-
-              if cs >= 100:
-                  s += 1
-                  cs = 0
-
-              return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
-
-          timings = {}
-
-          with open("work/subtitles/timing.txt") as f:
-              for line in f:
-                  i, start, end = line.strip().split("|")
-                  timings[int(i)] = (
-                      float(start),
-                      float(end)
-                  )
-
-          captions = {
-              1:
-              "Your actions might look good...\\N"
-              "but what really matters is "
-              "{\\\\c&H00D7FF&}WHY{\\\\c&HFFFFFF&} you did them.",
-
-              2:
-              "The Prophet Muhammad,\\N"
-              "peace and blessings be upon him, said:",
-
-              3:
-              "The reward of deeds depends\\N"
-              "upon the intentions,\\N"
-              "and every person will get the reward\\N"
-              "according to what they have intended.",
-
-              4:
-              "So before you do something...\\N"
-              "ask yourself:\\N"
-              "{\\\\c&H00D7FF&}Why am I doing this?{\\\\c&HFFFFFF&}",
-
-              5:
-              "A small action with a sincere\\N"
-              "{\\\\c&H00D7FF&}intention{\\\\c&HFFFFFF&}\\N"
-              "can have a huge reward.",
-
-              6:
-              "What will you make your\\N"
-              "{\\\\c&H00D7FF&}intention{\\\\c&HFFFFFF&} for today?",
-
-              7:
-              "Sahih al-Bukhari 1\\N"
-              "Narrated by Umar ibn al-Khattab."
-          }
-
-          header = """[Script Info]
-          ScriptType: v4.00+
-          PlayResX: 1080
-          PlayResY: 1920
-          WrapStyle: 2
-          ScaledBorderAndShadow: yes
-
-          [V4+ Styles]
-          Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-          Style: Main,DejaVu Sans,47,&H00FFFFFF,&H00FFFFFF,&H00000000,&HAA000000,0,0,1,3,1,2,125,125,245,1
-
-          [Events]
-          Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-          """
-
-          with open(
-              "work/subtitles/hadith.ass",
-              "w",
-              encoding="utf-8"
-          ) as f:
-              f.write(header)
-
-              for i in range(1, 8):
-                  start, end = timings[i]
-
-                  f.write(
-                      "Dialogue: 0,"
-                      + ass_time(start)
-                      + ","
-                      + ass_time(end)
-                      + ",Main,,0,0,245,,"
-                      + captions[i]
-                      + "\n"
-                  )
-
-          print("ASS subtitles created.")
-
-      - name: Render final reel
-        run: |
-          set -e
-          source work/animation.env
-
-          BRAND_START="$(
-            cat work/subtitles/brand_start.txt
-          )"
-
-          ffmpeg -y -loglevel error \
-            -i work/background.mp4 \
-            -i work/voice/voice.wav \
+          ffmpeg \
+            -y \
+            -loglevel error \
+            -i work/scenes/scene1.mp4 \
+            -i work/scenes/scene2.mp4 \
+            -i work/scenes/scene3.mp4 \
+            -i work/scenes/scene4.mp4 \
+            -i work/scenes/scene5.mp4 \
             -filter_complex "
               [0:v]
-              drawbox=x=70:y=118:w=940:h=2:color=0xD3A84F@0.55:t=fill,
-              drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='DEEN IN SEC':fontsize=31:fontcolor=0xE6C46A@0.92:borderw=2:bordercolor=black@0.35:x=(w-text_w)/2:y=67,
-              subtitles=work/subtitles/hadith.ass:force_style='FontName=DejaVu Sans,FontSize=47,MarginL=125,MarginR=125,MarginV=245,Alignment=2,Outline=3,Shadow=1',
-              drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='DEEN IN SEC':fontsize=58:fontcolor=0xE6C46A@0.94:borderw=3:bordercolor=black@0.45:x=(w-text_w)/2:y=925:enable='gte(t,${BRAND_START})',
-              fade=t=out:st=${VOICE_DURATION}:d=0.25
+              trim=duration=10,
+              setpts=PTS-STARTPTS,
+              zoompan=
+              z='min(zoom+0.00030,1.08)':
+              x='iw/2-(iw/zoom/2)':
+              y='ih/2-(ih/zoom/2)':
+              d=1:
+              s=1080x1920:
+              fps=30
+              [v0];
+
+              [1:v]
+              trim=duration=10,
+              setpts=PTS-STARTPTS,
+              zoompan=
+              z='min(zoom+0.00024,1.07)':
+              x='iw/2-(iw/zoom/2)':
+              y='ih/2-(ih/zoom/2)':
+              d=1:
+              s=1080x1920:
+              fps=30
+              [v1];
+
+              [2:v]
+              trim=duration=10,
+              setpts=PTS-STARTPTS,
+              zoompan=
+              z='min(zoom+0.00028,1.08)':
+              x='iw/2-(iw/zoom/2)':
+              y='ih/2-(ih/zoom/2)':
+              d=1:
+              s=1080x1920:
+              fps=30
+              [v2];
+
+              [3:v]
+              trim=duration=10,
+              setpts=PTS-STARTPTS,
+              zoompan=
+              z='min(zoom+0.00030,1.08)':
+              x='iw/2-(iw/zoom/2)':
+              y='ih/2-(ih/zoom/2)':
+              d=1:
+              s=1080x1920:
+              fps=30
+              [v3];
+
+              [4:v]
+              trim=duration=10,
+              setpts=PTS-STARTPTS,
+              zoompan=
+              z='min(zoom+0.00022,1.07)':
+              x='iw/2-(iw/zoom/2)':
+              y='ih/2-(ih/zoom/2)':
+              d=1:
+              s=1080x1920:
+              fps=30
+              [v4];
+
+              [v0][v1]
+              xfade=
+              transition=fade:
+              duration=0.70:
+              offset=9.30
+              [x1];
+
+              [x1][v2]
+              xfade=
+              transition=fade:
+              duration=0.70:
+              offset=18.60
+              [x2];
+
+              [x2][v3]
+              xfade=
+              transition=fade:
+              duration=0.70:
+              offset=27.90
+              [x3];
+
+              [x3][v4]
+              xfade=
+              transition=fade:
+              duration=0.70:
+              offset=37.20
+              [v]
+            " \
+            -map "[v]" \
+            -an \
+            -r 30 \
+            -pix_fmt yuv420p \
+            work/video_base.mp4
+
+      - name: Create subtitles
+        run: |
+          cat > work/make_ass.py <<'PY'
+          from pathlib import Path
+
+          d = float(
+              Path(
+                  "work/voice/duration.txt"
+              ).read_text()
+          )
+
+          base = [
+              (
+                  0.0,
+                  4.8,
+                  "Your actions might look good..."
+              ),
+              (
+                  4.8,
+                  7.4,
+                  "but what really matters is WHY you did them."
+              ),
+              (
+                  7.4,
+                  10.6,
+                  "The Prophet Muhammad, peace and blessings be upon him, said:"
+              ),
+              (
+                  10.6,
+                  23.8,
+                  "The reward of deeds depends upon the intentions,"
+              ),
+              (
+                  23.8,
+                  28.8,
+                  "and every person will get the reward according to what they have intended."
+              ),
+              (
+                  28.8,
+                  33.2,
+                  "So before you do something... ask yourself..."
+              ),
+              (
+                  33.2,
+                  35.2,
+                  "Why am I doing this?"
+              ),
+              (
+                  35.2,
+                  38.2,
+                  "A small action with a sincere intention can have a huge reward."
+              ),
+              (
+                  38.2,
+                  40.0,
+                  "What will you make your intention for today?"
+              ),
+          ]
+
+          scale = d / 40.0
+          events = []
+
+          for a, b, text in base:
+              aa = a * scale
+              bb = min(
+                  b * scale,
+                  d
+              )
+
+              if bb > aa:
+                  events.append(
+                      (
+                          aa,
+                          bb,
+                          text
+                      )
+                  )
+
+          def ts(x):
+              h = int(x // 3600)
+              x -= h * 3600
+
+              m = int(x // 60)
+              x -= m * 60
+
+              sec = int(x)
+              cs = int(
+                  round(
+                      (x - sec) * 100
+                  )
+              )
+
+              if cs == 100:
+                  sec += 1
+                  cs = 0
+
+              return (
+                  f"{h}:{m:02d}:"
+                  f"{sec:02d}.{cs:02d}"
+              )
+
+          lines = [
+              "[Script Info]",
+              "ScriptType: v4.00+",
+              "PlayResX:1080",
+              "PlayResY:1920",
+              "",
+              "[V4+ Styles]",
+              (
+                  "Format: Name,Fontname,Fontsize,"
+                  "PrimaryColour,SecondaryColour,"
+                  "OutlineColour,BackColour,Bold,"
+                  "Italic,Underline,StrikeOut,"
+                  "ScaleX,ScaleY,Spacing,Angle,"
+                  "BorderStyle,Outline,Shadow,"
+                  "Alignment,MarginL,MarginR,"
+                  "MarginV,Encoding"
+              ),
+              (
+                  "Style: Main,DejaVu Sans,54,"
+                  "&H00FFFFFF,&H00FFFFFF,"
+                  "&H00101010,&H90000000,"
+                  "1,0,0,0,100,100,0,0,"
+                  "1,3,1,2,150,150,250,1"
+              ),
+              "",
+              "[Events]",
+              (
+                  "Format: Layer,Start,End,Style,"
+                  "Name,MarginL,MarginR,MarginV,"
+                  "Effect,Text"
+              ),
+          ]
+
+          for a, b, text in events:
+              safe = (
+                  text
+                  .replace("{", "(")
+                  .replace("}", ")")
+              )
+
+              safe = safe.replace(
+                  "WHY",
+                  "{\\c&H00D7B06B&}WHY{\\c&H00FFFFFF&}"
+              )
+
+              safe = safe.replace(
+                  "intentions",
+                  "{\\c&H00D7B06B&}intentions{\\c&H00FFFFFF&}"
+              )
+
+              safe = safe.replace(
+                  "Why am I doing this?",
+                  "{\\c&H00D7B06B&}"
+                  "Why am I doing this?"
+                  "{\\c&H00FFFFFF&}"
+              )
+
+              lines.append(
+                  "Dialogue: 0,"
+                  f"{ts(a)},"
+                  f"{ts(b)},"
+                  "Main,,0,0,0,,"
+                  f"{safe}"
+              )
+
+          Path(
+              "work/subtitles.ass"
+          ).write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8"
+          )
+          PY
+
+          python work/make_ass.py
+
+      - name: Render final Reel
+        run: |
+          D=$(cat work/voice/duration.txt)
+
+          FADE_START=$(python - <<'PY'
+          d = float(
+              open(
+                  "work/voice/duration.txt"
+              ).read()
+          )
+          print(max(0, d - 0.45))
+          PY
+          )
+
+          ffmpeg \
+            -y \
+            -loglevel error \
+            -i work/video_base.mp4 \
+            -i work/voice/final.wav \
+            -filter_complex "
+              [0:v]
+              trim=duration=$D,
+              setpts=PTS-STARTPTS,
+              subtitles=work/subtitles.ass,
+              drawbox=
+              x=40:
+              y=40:
+              w=1000:
+              h=1830:
+              color=black@0.06:
+              t=2,
+              drawtext=
+              fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+              text='DEEN IN SEC':
+              fontcolor=white@0.72:
+              fontsize=28:
+              x=(w-text_w)/2:
+              y=72:
+              enable='between(t,0,3)',
+              drawtext=
+              fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+              text='DEEN IN SEC':
+              fontcolor=white@0.88:
+              fontsize=44:
+              x=(w-text_w)/2:
+              y=h-170:
+              enable='gte(t,$FADE_START-1.2)',
+              fade=t=in:st=0:d=0.45,
+              fade=t=out:st=$FADE_START:d=0.45
               [v]
             " \
             -map "[v]" \
             -map 1:a \
+            -t "$D" \
             -c:v libx264 \
             -preset medium \
-            -crf 18 \
-            -pix_fmt yuv420p \
+            -crf 19 \
             -c:a aac \
             -b:a 192k \
-            -t "$VIDEO_DURATION" \
             -movflags +faststart \
-            output/deen-in-sec-hadith-001-v6.mp4
+            output/deen-in-sec-hadith-001-v7.mp4
 
-      - name: Create caption
+      - name: Add source and caption files
         run: |
-          cat > output/caption.txt <<'EOF'
-          Your actions might look good… but what really matters is why you did them.
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
-          A reminder from Sahih al-Bukhari 1:
-          the reward of deeds depends upon intentions.
+          rows = []
+
+          for n in range(1, 6):
+              p = Path(
+                  f"work/assets/scene{n}.json"
+              )
+
+              rows.append(
+                  json.loads(
+                      p.read_text()
+                  )
+              )
+
+          text = [
+              "DEEN IN SEC — V7",
+              "",
+              "Visual footage: Pexels",
+              "Pexels API was used to retrieve the stock footage.",
+              "",
+          ]
+
+          for i, r in enumerate(rows, 1):
+              text += [
+                  f"Scene {i}: "
+                  f"Pexels video "
+                  f"{r.get('pexels_video_id')}",
+                  f"Photographer: "
+                  f"{r.get('photographer', '')}",
+                  f"Source: "
+                  f"{r.get('pexels_page', '')}",
+                  "",
+              ]
+
+          Path(
+              "output/credits.txt"
+          ).write_text(
+              "\n".join(text),
+              encoding="utf-8"
+          )
+
+          caption = """Your actions might look good... but what really matters is WHY you did them.
+
+          The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.
 
           What will you make your intention for today? 🤍
 
-          Source: Sahih al-Bukhari 1
-          Narrated by Umar ibn al-Khattab
+          Sahih al-Bukhari 1
+           Narrated by Umar ibn al-Khattab رضي الله عنه
+ 
+          Footage: Pexels — https://www.pexels.com/
 
-          #Islam #Hadith #Sunnah #IslamicReminder #Muslim #DeenInSec #IslamicReels #Quran #Reminder
-          EOF
+#DeenInSec #Hadith #Islam #Sunnah #SahihBukhari #Reminder #IslamicReminder"""
 
-      - name: Verify final files
+          Path(
+              "output/caption.txt"
+          ).write_text(
+              caption,
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Verify output
         run: |
-          set -e
+          test -s output/deen-in-sec-hadith-001-v7.mp4
 
-          test -s output/deen-in-sec-hadith-001-v6.mp4
-          test -s output/caption.txt
+          echo "VIDEO:"
+          ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=width,height,r_frame_rate \
+            -of default=noprint_wrappers=1 \
+            output/deen-in-sec-hadith-001-v7.mp4
 
-          DURATION="$(
-            ffprobe -v error \
-              -show_entries format=duration \
-              -of csv=p=0 \
-              output/deen-in-sec-hadith-001-v6.mp4
-          )"
+          echo "AUDIO:"
+          ffprobe \
+            -v error \
+            -select_streams a:0 \
+            -show_entries stream=codec_name \
+            -of default=noprint_wrappers=1 \
+            output/deen-in-sec-hadith-001-v7.mp4
 
-          WIDTH="$(
-            ffprobe -v error \
-              -select_streams v:0 \
-              -show_entries stream=width \
-              -of csv=p=0 \
-              output/deen-in-sec-hadith-001-v6.mp4
-          )"
+          echo "DURATION:"
+          ffprobe \
+            -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1 \
+            output/deen-in-sec-hadith-001-v7.mp4
 
-          HEIGHT="$(
-            ffprobe -v error \
-              -select_streams v:0 \
-              -show_entries stream=height \
-              -of csv=p=0 \
-              output/deen-in-sec-hadith-001-v6.mp4
-          )"
-
-          AUDIO="$(
-            ffprobe -v error \
-              -select_streams a:0 \
-              -show_entries stream=codec_name \
-              -of csv=p=0 \
-              output/deen-in-sec-hadith-001-v6.mp4
-          )"
-
-          echo "Duration: $DURATION"
-          echo "Resolution: ${WIDTH}x${HEIGHT}"
-          echo "Audio codec: $AUDIO"
-
-          test "$WIDTH" = "1080"
-          test "$HEIGHT" = "1920"
-          test "$AUDIO" = "aac"
-
-          ls -lh output/
-
-      - name: Upload final V6 artifact
+      - name: Upload Reel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: deen-in-sec-hadith-001-v6
-          path: |
-            output/deen-in-sec-hadith-001-v6.mp4
-            output/caption.txt
-          retention-days: 7
+          name: deen-in-sec-hadith-001-v7
+          path: output/
+          if-no-files-found: error
