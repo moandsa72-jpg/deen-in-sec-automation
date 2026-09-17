@@ -666,50 +666,7 @@ jobs:
             -movflags +faststart \
             output/deen-in-sec-hadith-001-v7.mp4
 
-      - name: Add source and caption files
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          rows = []
-
-          for n in range(1, 6):
-              p = Path(
-                  f"work/assets/scene{n}.json"
-              )
-
-              rows.append(
-                  json.loads(
-                      p.read_text()
-                  )
-              )
-
-          text = [
-              "DEEN IN SEC — V7",
-              "",
-              "Visual footage: Pexels",
-              "Pexels API was used to retrieve the stock footage.",
-              "",
-          ]
-
-          for i, r in enumerate(rows, 1):
-              text += [
-                  f"Scene {i}: "
-                  f"Pexels video "
-                  f"{r.get('pexels_video_id')}",
-                  f"Photographer: "
-                  f"{r.get('photographer', '')}",
-                  f"Source: "
-                  f"{r.get('pexels_page', '')}",
-                  "",
-              ]
-
-          Path(
-              "output/credits.txt"
-          ).write_text(
-              "\n".join(text),
-              encoding="utf-8"
+      
           )
 
           caption = """Your actions might look good... but what really matters is WHY you did them.
@@ -725,14 +682,64 @@ jobs:
  
           #DeenInSec #Hadith #Islam #Sunnah #SahihBukhari #Reminder #IslamicReminder"""
 
-                   Path(
-              "output/caption.txt"
-          ).write_text(
+            - name: Add source and caption files
+              run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = []
+
+          for n in range(1, 6):
+              p = Path(f"work/assets/scene{n}.json")
+              rows.append(json.loads(p.read_text()))
+
+          text = [
+              "DEEN IN SEC — V7",
+              "",
+              "Visual footage: Pexels",
+              "Pexels API was used to retrieve the stock footage.",
+              "",
+          ]
+
+          for i, r in enumerate(rows, 1):
+              text.append(
+                  f"Scene {i}: Pexels video "
+                  f"{r.get('pexels_video_id')}"
+              )
+              text.append(
+                  f"Photographer: "
+                  f"{r.get('photographer', '')}"
+              )
+              text.append(
+                  f"Source: "
+                  f"{r.get('pexels_page', '')}"
+              )
+              text.append("")
+
+          Path("output/credits.txt").write_text(
+              "\n".join(text),
+              encoding="utf-8"
+          )
+
+          caption = """Your actions might look good... but what really matters is WHY you did them.
+
+          The reward of deeds depends upon the intentions, and every person will get the reward according to what they have intended.
+
+          What will you make your intention for today? 🤍
+
+          Sahih al-Bukhari 1
+          Narrated by Umar ibn al-Khattab رضي الله عنه
+
+          Footage: Pexels — https://www.pexels.com/
+
+          #DeenInSec #Hadith #Islam #Sunnah #SahihBukhari #Reminder #IslamicReminder"""
+
+          Path("output/caption.txt").write_text(
               caption,
               encoding="utf-8"
           )
           PY
-
       - name: Verify output
         run: |
           test -s output/deen-in-sec-hadith-001-v7.mp4
