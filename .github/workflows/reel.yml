@@ -722,10 +722,10 @@ jobs:
            Narrated by Umar ibn al-Khattab رضي الله عنه
  
           Footage: Pexels — https://www.pexels.com/
+ 
+          #DeenInSec #Hadith #Islam #Sunnah #SahihBukhari #Reminder #IslamicReminder"""
 
-#DeenInSec #Hadith #Islam #Sunnah #SahihBukhari #Reminder #IslamicReminder"""
-
-          Path(
+                   Path(
               "output/caption.txt"
           ).write_text(
               caption,
