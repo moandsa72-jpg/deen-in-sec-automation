@@ -605,52 +605,69 @@ jobs:
           python work/make_ass.py
 
       
-      - name: Render final Reel
-        run: |
+            - name: Render final Reel
+              run: |
           D=$(cat work/voice/duration.txt)
 
-          FADE_START=$(python -c "d=float(open('work/voice/duration.txt').read()); print(max(0,d-0.45))")
+          python - <<'PY'
+          from pathlib import Path
 
-          echo "Final duration: $D"
-          echo "Fade starts: $FADE_START"
+          d = float(
+              Path("work/voice/duration.txt").read_text()
+          )
+
+          fade_start = max(0.0, d - 0.45)
+
+          filter_text = f"""
+          [0:v]
+          trim=duration={d:.6f},
+          setpts=PTS-STARTPTS,
+          subtitles=work/subtitles.ass,
+          drawbox=
+          x=40:
+          y=40:
+          w=1000:
+          h=1830:
+          color=black@0.06:
+          t=2,
+          drawtext=
+          fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+          text='DEEN IN SEC':
+          fontcolor=white@0.72:
+          fontsize=28:
+          x=(w-text_w)/2:
+          y=72:
+          enable=between(t,0,3),
+          drawtext=
+          fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+          text='DEEN IN SEC':
+          fontcolor=white@0.88:
+          fontsize=44:
+          x=(w-text_w)/2:
+          y=h-170:
+          enable=gte(t,{fade_start - 1.2:.6f}),
+          fade=t=in:st=0:d=0.45,
+          fade=t=out:st={fade_start:.6f}:d=0.45
+          [v]
+          """
+
+          Path(
+              "work/final_filter.txt"
+          ).write_text(
+              filter_text,
+              encoding="utf-8"
+          )
+          PY
+
+          echo "Rendering final Reel..."
+          echo "Duration: $D seconds"
 
           ffmpeg \
             -y \
             -loglevel error \
             -i work/video_base.mp4 \
             -i work/voice/final.wav \
-            -filter_complex "
-              [0:v]
-              trim=duration=$D,
-              setpts=PTS-STARTPTS,
-              subtitles=work/subtitles.ass,
-              drawbox=
-              x=40:
-              y=40:
-              w=1000:
-              h=1830:
-              color=black@0.06:
-              t=2,
-              drawtext=
-              fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
-              text='DEEN IN SEC':
-              fontcolor=white@0.72:
-              fontsize=28:
-              x=(w-text_w)/2:
-              y=72:
-              enable='between(t,0,3)',
-              drawtext=
-              fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
-              text='DEEN IN SEC':
-              fontcolor=white@0.88:
-              fontsize=44:
-              x=(w-text_w)/2:
-              y=h-170:
-              enable='gte(t,$FADE_START-1.2)',
-              fade=t=in:st=0:d=0.45,
-              fade=t=out:st=$FADE_START:d=0.45
-              [v]
-            " \
+            -filter_complex_script work/final_filter.txt \
             -map "[v]" \
             -map 1:a \
             -t "$D" \
