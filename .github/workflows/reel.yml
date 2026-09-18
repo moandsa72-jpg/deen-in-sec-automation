@@ -604,19 +604,15 @@ jobs:
 
           python work/make_ass.py
 
+      
       - name: Render final Reel
         run: |
           D=$(cat work/voice/duration.txt)
 
-          FADE_START=$(python - <<'PY'
-          d = float(
-              open(
-                  "work/voice/duration.txt"
-              ).read()
-          )
-          print(max(0, d - 0.45))
-          PY
-          )
+          FADE_START=$(python -c "d=float(open('work/voice/duration.txt').read()); print(max(0,d-0.45))")
+
+          echo "Final duration: $D"
+          echo "Fade starts: $FADE_START"
 
           ffmpeg \
             -y \
@@ -665,7 +661,6 @@ jobs:
             -b:a 192k \
             -movflags +faststart \
             output/deen-in-sec-hadith-001-v7.mp4
-
       
           )
 
