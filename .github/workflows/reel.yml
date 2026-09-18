@@ -429,7 +429,7 @@ jobs:
             work/video_base.mp4
 
             - name: Create subtitles
-        run: |
+               run: |
           python - <<'PY'
           from pathlib import Path
           import wave
